@@ -11,7 +11,9 @@
 #            back to Git; ArgoCD detects the change and rolls
 #            out new pods automatically (no kubectl needed)
 #
-# Assumes ACR already exists (run infra.yml first on a new env)
+# Assumes ACR already exists (run infra.yml first on a new env).
+# ACR admin is disabled — authenticates via service principal (AZURE_CREDENTIALS).
+# No ACR_USERNAME / ACR_PASSWORD secrets needed.
 # ============================================================
 
 name: App CI/CD
@@ -51,20 +53,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: docker/login-action@v3
+      - uses: azure/login@v2
         with:
-          registry: ${{ secrets.ACR_LOGIN_SERVER }}
-          username: ${{ secrets.ACR_USERNAME }}
-          password: ${{ secrets.ACR_PASSWORD }}
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - uses: docker/build-push-action@v5
-        with:
-          context: ${{ matrix.context }}
-          file: ${{ matrix.context }}/Dockerfile
-          push: true
-          tags: |
-            ${{ secrets.ACR_LOGIN_SERVER }}/${{ matrix.name }}:${{ github.sha }}
-            ${{ secrets.ACR_LOGIN_SERVER }}/${{ matrix.name }}:latest
+      - name: Build & Push ${{ matrix.name }}
+        run: |
+          ACR_NAME=$(echo "${{ secrets.ACR_LOGIN_SERVER }}" | cut -d'.' -f1)
+          az acr login --name "$ACR_NAME"
+
+          docker build \
+            -t "${{ secrets.ACR_LOGIN_SERVER }}/${{ matrix.name }}:${{ github.sha }}" \
+            -t "${{ secrets.ACR_LOGIN_SERVER }}/${{ matrix.name }}:latest" \
+            -f "${{ matrix.context }}/Dockerfile" \
+            "${{ matrix.context }}"
+
+          docker push "${{ secrets.ACR_LOGIN_SERVER }}/${{ matrix.name }}:${{ github.sha }}"
+          docker push "${{ secrets.ACR_LOGIN_SERVER }}/${{ matrix.name }}:latest"
 
   # ── Update Helm image.tag → ArgoCD auto-deploys ───────────
   deploy:
