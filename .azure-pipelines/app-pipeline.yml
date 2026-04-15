@@ -1,0 +1,129 @@
+# ============================================================
+# App Pipeline — builds images and triggers ArgoCD GitOps
+#
+# Triggers on changes to application code only:
+#   services/**, frontend/**, helm/**
+#
+# Stage 1: Builds all 5 Docker images in parallel (matrix)
+#          and pushes them to ACR tagged with the commit SHA.
+# Stage 2: Updates image.tag in helm/values.yaml and commits
+#          back to Git; ArgoCD detects the change and rolls
+#          out new pods automatically (no kubectl needed).
+#
+# Assumes ACR already exists (run infra-pipeline.yml first).
+#
+# Variables (set in Pipelines → Library or pipeline variables):
+#   AZURE_SERVICE_CONNECTION — Azure RM service connection name
+#   ACR_SERVICE_CONNECTION   — Docker Registry service connection
+#   GIT_USER_EMAIL           — bot commit email
+#   GIT_USER_NAME            — bot commit name
+# ============================================================
+
+trigger:
+  branches:
+    include: [main]
+  paths:
+    include:
+      - services/**
+      - frontend/**
+      - helm/**
+
+variables:
+  HELM_VALUES: helm/zingycommerce/values.yaml
+  IMAGE_TAG: $(Build.SourceVersion)
+
+stages:
+
+# ============================================================
+# STAGE 1: Build all 5 images in parallel
+# ============================================================
+- stage: Build
+  displayName: 'Build & Push Docker Images'
+  jobs:
+
+  - job: BuildImages
+    displayName: 'Build $(IMAGE_NAME)'
+    pool:
+      vmImage: ubuntu-latest
+    strategy:
+      matrix:
+        user-service:
+          IMAGE_NAME: user-service
+          BUILD_CONTEXT: services/user-service
+          DOCKERFILE: services/user-service/Dockerfile
+        product-service:
+          IMAGE_NAME: product-service
+          BUILD_CONTEXT: services/product-service
+          DOCKERFILE: services/product-service/Dockerfile
+        order-service:
+          IMAGE_NAME: order-service
+          BUILD_CONTEXT: services/order-service
+          DOCKERFILE: services/order-service/Dockerfile
+        api-gateway:
+          IMAGE_NAME: api-gateway
+          BUILD_CONTEXT: services/api-gateway
+          DOCKERFILE: services/api-gateway/Dockerfile
+        frontend:
+          IMAGE_NAME: frontend
+          BUILD_CONTEXT: frontend
+          DOCKERFILE: frontend/Dockerfile
+
+    steps:
+      - checkout: self
+
+      - task: Docker@2
+        displayName: 'Build & Push $(IMAGE_NAME)'
+        inputs:
+          command: buildAndPush
+          repository: $(IMAGE_NAME)
+          dockerfile: $(DOCKERFILE)
+          containerRegistry: $(ACR_SERVICE_CONNECTION)
+          buildContext: $(BUILD_CONTEXT)
+          tags: |
+            $(IMAGE_TAG)
+            latest
+
+# ============================================================
+# STAGE 2: Update Helm image.tag → ArgoCD auto-deploys
+# ============================================================
+- stage: Deploy
+  displayName: 'Update Helm image.tag (GitOps trigger)'
+  dependsOn: Build
+  condition: succeeded()
+  jobs:
+
+  - job: UpdateHelm
+    displayName: 'Update image.tag and push'
+    pool:
+      vmImage: ubuntu-latest
+    steps:
+
+      - checkout: self
+        persistCredentials: true
+        fetchDepth: 0
+
+      - bash: |
+          curl -fsSL https://github.com/mikefarah/yq/releases/download/v4.40.5/yq_linux_amd64 \
+            -o /usr/local/bin/yq && chmod +x /usr/local/bin/yq
+        displayName: 'Install yq'
+
+      - bash: |
+          set -e
+          SHORT_SHA="${IMAGE_TAG:0:8}"
+
+          yq -i ".image.tag = \"$IMAGE_TAG\"" "$(HELM_VALUES)"
+
+          git config user.email "$(GIT_USER_EMAIL)"
+          git config user.name  "$(GIT_USER_NAME)"
+
+          if git diff --quiet "$(HELM_VALUES)"; then
+            echo "image.tag already up to date — nothing to commit."
+          else
+            git add "$(HELM_VALUES)"
+            git commit -m "chore: update image.tag to ${SHORT_SHA} [skip ci]"
+            git push origin HEAD:main
+            echo "Pushed. ArgoCD will sync within 3 minutes."
+          fi
+        displayName: 'Update image.tag and push to Git'
+        env:
+          IMAGE_TAG: $(IMAGE_TAG)

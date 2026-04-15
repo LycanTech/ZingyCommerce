@@ -1,0 +1,100 @@
+# ============================================================
+# App Pipeline — builds images and triggers ArgoCD GitOps
+#
+# Triggers on changes to application code only:
+#   services/**, frontend/**, helm/**
+#
+# Jobs:
+#   build  — builds all 5 Docker images in parallel (matrix)
+#            and pushes them to ACR tagged with the commit SHA
+#   deploy — updates image.tag in helm/values.yaml and commits
+#            back to Git; ArgoCD detects the change and rolls
+#            out new pods automatically (no kubectl needed)
+#
+# Assumes ACR already exists (run infra.yml first on a new env)
+# ============================================================
+
+name: App CI/CD
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'services/**'
+      - 'frontend/**'
+      - 'helm/**'
+
+env:
+  HELM_VALUES: helm/zingycommerce/values.yaml
+
+jobs:
+
+  # ── Build all 5 images in parallel ────────────────────────
+  build:
+    name: Build & Push ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: user-service
+            context: services/user-service
+          - name: product-service
+            context: services/product-service
+          - name: order-service
+            context: services/order-service
+          - name: api-gateway
+            context: services/api-gateway
+          - name: frontend
+            context: frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ secrets.ACR_LOGIN_SERVER }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+
+      - uses: docker/build-push-action@v5
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.context }}/Dockerfile
+          push: true
+          tags: |
+            ${{ secrets.ACR_LOGIN_SERVER }}/${{ matrix.name }}:${{ github.sha }}
+            ${{ secrets.ACR_LOGIN_SERVER }}/${{ matrix.name }}:latest
+
+  # ── Update Helm image.tag → ArgoCD auto-deploys ───────────
+  deploy:
+    name: Update Helm image.tag (GitOps trigger)
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install yq
+        run: |
+          curl -fsSL https://github.com/mikefarah/yq/releases/download/v4.40.5/yq_linux_amd64 \
+            -o /usr/local/bin/yq && chmod +x /usr/local/bin/yq
+
+      - name: Update image.tag and push
+        run: |
+          yq -i ".image.tag = \"${{ github.sha }}\"" "${{ env.HELM_VALUES }}"
+
+          git config user.email "${{ secrets.GIT_USER_EMAIL }}"
+          git config user.name  "${{ secrets.GIT_USER_NAME }}"
+
+          if git diff --quiet "${{ env.HELM_VALUES }}"; then
+            echo "image.tag already up to date — nothing to commit."
+          else
+            git add "${{ env.HELM_VALUES }}"
+            git commit -m "chore: update image.tag to ${GITHUB_SHA:0:8} [skip ci]"
+            git push origin main
+            echo "Pushed. ArgoCD will sync within 3 minutes."
+          fi

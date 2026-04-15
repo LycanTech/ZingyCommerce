@@ -1,0 +1,135 @@
+# ============================================================
+# Bootstrap Pipeline — one-time cluster setup
+#
+# Trigger: MANUAL ONLY (workflow_dispatch)
+# Run this once after terraform apply has provisioned AKS.
+# Never needs to run again for normal app deployments.
+#
+# Installs:
+#   - NGINX Ingress Controller (public LoadBalancer)
+#   - cert-manager + Let's Encrypt ClusterIssuer
+#   - Prometheus + Grafana (kube-prometheus-stack)
+#   - Loki log aggregation
+#   - ArgoCD (takes over all future deployments)
+#   - ArgoCD AppProject + Application for ZingyCommerce
+# ============================================================
+
+name: Bootstrap Cluster
+
+on:
+  workflow_dispatch:
+    inputs:
+      cluster_name:
+        description: 'AKS cluster name (from terraform output aks_cluster_name)'
+        required: true
+      resource_group:
+        description: 'AKS resource group (from terraform output resource_group_name)'
+        required: true
+
+jobs:
+  bootstrap:
+    name: Install cluster tooling & register ArgoCD app
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Connect kubectl to AKS
+        run: |
+          az aks get-credentials \
+            --resource-group ${{ inputs.resource_group }} \
+            --name ${{ inputs.cluster_name }} \
+            --overwrite-existing
+          kubectl cluster-info
+
+      - uses: azure/setup-helm@v4
+
+      - name: Install NGINX Ingress Controller
+        run: |
+          helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+          helm repo update
+          helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
+            --namespace ingress-nginx \
+            --create-namespace \
+            --set controller.replicaCount=2 \
+            --set controller.service.annotations."service\.beta\.kubernetes\.io/azure-load-balancer-health-probe-request-path"=/healthz \
+            --wait --timeout 5m
+          echo "Public IP:"
+          kubectl get svc -n ingress-nginx ingress-nginx-controller
+
+      - name: Install cert-manager
+        run: |
+          helm repo add jetstack https://charts.jetstack.io
+          helm repo update
+          helm upgrade --install cert-manager jetstack/cert-manager \
+            --namespace cert-manager \
+            --create-namespace \
+            --set installCRDs=true \
+            --wait --timeout 5m
+
+          kubectl apply -f - <<'EOF'
+          apiVersion: cert-manager.io/v1
+          kind: ClusterIssuer
+          metadata:
+            name: letsencrypt-prod
+          spec:
+            acme:
+              server: https://acme-v02.api.letsencrypt.org/directory
+              email: admin@chikwex.io
+              privateKeySecretRef:
+                name: letsencrypt-prod-key
+              solvers:
+                - http01:
+                    ingress:
+                      class: nginx
+          EOF
+
+      - name: Install Prometheus + Grafana
+        run: |
+          helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+          helm repo update
+          helm upgrade --install kube-prometheus-stack prometheus-community/kube-prometheus-stack \
+            --namespace monitoring \
+            --create-namespace \
+            -f monitoring/prometheus/values.yaml \
+            --wait --timeout 10m
+
+      - name: Install Loki
+        run: |
+          helm repo add grafana https://grafana.github.io/helm-charts
+          helm repo update
+          helm upgrade --install loki grafana/loki-stack \
+            --namespace monitoring \
+            -f monitoring/loki/values.yaml \
+            --wait --timeout 5m
+
+      - name: Install ArgoCD
+        run: |
+          kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
+          kubectl apply -n argocd \
+            -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+          kubectl apply -f argocd/install.yaml
+
+          kubectl rollout status deployment/argocd-server -n argocd --timeout=5m
+
+          echo "Initial admin password:"
+          kubectl -n argocd get secret argocd-initial-admin-secret \
+            -o jsonpath="{.data.password}" | base64 -d
+          echo ""
+
+      - name: Register ArgoCD Application
+        run: |
+          kubectl wait --for=condition=Established \
+            crd/applications.argoproj.io \
+            crd/appprojects.argoproj.io \
+            --timeout=60s
+
+          kubectl apply -f argocd/appproject.yaml
+          kubectl apply -f argocd/application.yaml
+
+          echo "Bootstrap complete. ArgoCD will now sync ZingyCommerce from Git automatically."

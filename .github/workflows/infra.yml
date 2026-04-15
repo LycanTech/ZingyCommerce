@@ -1,0 +1,151 @@
+# ============================================================
+# Infra Pipeline — Terraform plan → manual approval → apply
+#
+# Triggers on changes to infrastructure/** only.
+# App code changes do NOT run Terraform.
+#
+# Jobs:
+#   plan  — terraform fmt/validate/plan, uploads plan artifact
+#   apply — downloads artifact, terraform apply
+#           gated by the "production" environment approval
+#           (configure in GitHub → Settings → Environments)
+# ============================================================
+
+name: Infrastructure
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'infrastructure/**'
+
+env:
+  TF_DIR: infrastructure
+  TF_VERSION: 1.8.5
+
+jobs:
+
+  # ── Validate and plan ──────────────────────────────────────
+  plan:
+    name: Terraform Plan
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: terraform init
+        working-directory: ${{ env.TF_DIR }}
+        env:
+          ARM_CLIENT_ID:       ${{ fromJson(secrets.AZURE_CREDENTIALS).clientId }}
+          ARM_CLIENT_SECRET:   ${{ fromJson(secrets.AZURE_CREDENTIALS).clientSecret }}
+          ARM_TENANT_ID:       ${{ fromJson(secrets.AZURE_CREDENTIALS).tenantId }}
+          ARM_SUBSCRIPTION_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}
+        run: |
+          terraform init \
+            -backend-config="resource_group_name=${{ secrets.TF_RESOURCE_GROUP }}" \
+            -backend-config="storage_account_name=${{ secrets.TF_STORAGE_ACCOUNT }}" \
+            -backend-config="container_name=tfstate" \
+            -backend-config="key=zcommerce.terraform.tfstate" \
+            -input=false
+
+      - name: terraform fmt check
+        working-directory: ${{ env.TF_DIR }}
+        run: terraform fmt -check -recursive
+
+      - name: terraform validate
+        working-directory: ${{ env.TF_DIR }}
+        env:
+          ARM_CLIENT_ID:       ${{ fromJson(secrets.AZURE_CREDENTIALS).clientId }}
+          ARM_CLIENT_SECRET:   ${{ fromJson(secrets.AZURE_CREDENTIALS).clientSecret }}
+          ARM_TENANT_ID:       ${{ fromJson(secrets.AZURE_CREDENTIALS).tenantId }}
+          ARM_SUBSCRIPTION_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}
+        run: terraform validate
+
+      - name: terraform plan
+        working-directory: ${{ env.TF_DIR }}
+        env:
+          ARM_CLIENT_ID:       ${{ fromJson(secrets.AZURE_CREDENTIALS).clientId }}
+          ARM_CLIENT_SECRET:   ${{ fromJson(secrets.AZURE_CREDENTIALS).clientSecret }}
+          ARM_TENANT_ID:       ${{ fromJson(secrets.AZURE_CREDENTIALS).tenantId }}
+          ARM_SUBSCRIPTION_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}
+        run: |
+          terraform plan \
+            -out=tfplan \
+            -var="prefix=zcommerce" \
+            -var="environment=prod" \
+            -input=false
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: terraform-plan
+          path: ${{ env.TF_DIR }}/tfplan
+          retention-days: 1
+
+  # ── Apply (manual approval gate) ──────────────────────────
+  apply:
+    name: Terraform Apply
+    runs-on: ubuntu-latest
+    needs: plan
+    environment: production   # ← approval lives here in GitHub Settings → Environments
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: terraform-plan
+          path: ${{ env.TF_DIR }}
+
+      - uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: terraform init
+        working-directory: ${{ env.TF_DIR }}
+        env:
+          ARM_CLIENT_ID:       ${{ fromJson(secrets.AZURE_CREDENTIALS).clientId }}
+          ARM_CLIENT_SECRET:   ${{ fromJson(secrets.AZURE_CREDENTIALS).clientSecret }}
+          ARM_TENANT_ID:       ${{ fromJson(secrets.AZURE_CREDENTIALS).tenantId }}
+          ARM_SUBSCRIPTION_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}
+        run: |
+          terraform init \
+            -backend-config="resource_group_name=${{ secrets.TF_RESOURCE_GROUP }}" \
+            -backend-config="storage_account_name=${{ secrets.TF_STORAGE_ACCOUNT }}" \
+            -backend-config="container_name=tfstate" \
+            -backend-config="key=zcommerce.terraform.tfstate" \
+            -input=false
+
+      - name: terraform apply
+        working-directory: ${{ env.TF_DIR }}
+        env:
+          ARM_CLIENT_ID:       ${{ fromJson(secrets.AZURE_CREDENTIALS).clientId }}
+          ARM_CLIENT_SECRET:   ${{ fromJson(secrets.AZURE_CREDENTIALS).clientSecret }}
+          ARM_TENANT_ID:       ${{ fromJson(secrets.AZURE_CREDENTIALS).tenantId }}
+          ARM_SUBSCRIPTION_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}
+        run: terraform apply -auto-approve tfplan
+
+      - name: Print outputs
+        working-directory: ${{ env.TF_DIR }}
+        env:
+          ARM_CLIENT_ID:       ${{ fromJson(secrets.AZURE_CREDENTIALS).clientId }}
+          ARM_CLIENT_SECRET:   ${{ fromJson(secrets.AZURE_CREDENTIALS).clientSecret }}
+          ARM_TENANT_ID:       ${{ fromJson(secrets.AZURE_CREDENTIALS).tenantId }}
+          ARM_SUBSCRIPTION_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}
+        run: |
+          echo "ACR: $(terraform output -raw acr_login_server)"
+          echo "AKS: $(terraform output -raw aks_cluster_name)"
+          echo "RG:  $(terraform output -raw resource_group_name)"

@@ -139,7 +139,7 @@ stages:
             terraform plan \
               -out=tfplan \
               -var="environment=prod" \
-              -var="prefix=chikwex" \
+              -var="prefix=zcommerce" \
               -input=false
 
       - publish: '$(TF_DIR)/tfplan'

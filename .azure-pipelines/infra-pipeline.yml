@@ -1,0 +1,191 @@
+# ============================================================
+# Infra Pipeline — Terraform plan → manual approval → apply
+#
+# Triggers on changes to infrastructure/** only.
+# App code changes do NOT run Terraform.
+#
+# Stage 1: terraform fmt / validate / plan (auto)
+# Stage 2: terraform apply (requires manual approval on the
+#          "production" environment in Azure DevOps)
+#
+# Variables (set in Pipelines → Library or pipeline variables):
+#   AZURE_SERVICE_CONNECTION — Azure RM service connection name
+#   TF_STORAGE_ACCOUNT       — Azure storage account for TF state
+#   TF_RESOURCE_GROUP        — resource group of the storage account
+# ============================================================
+
+trigger:
+  branches:
+    include: [main]
+  paths:
+    include:
+      - infrastructure/**
+
+variables:
+  TF_DIR: infrastructure
+  TF_VERSION: 1.8.5
+
+stages:
+
+# ============================================================
+# STAGE 1: Validate and plan
+# ============================================================
+- stage: Plan
+  displayName: 'Terraform Plan'
+  jobs:
+
+  - job: TerraformPlan
+    displayName: 'fmt / validate / plan'
+    pool:
+      vmImage: ubuntu-latest
+    steps:
+
+      - checkout: self
+
+      - bash: |
+          curl -fsSL https://releases.hashicorp.com/terraform/$(TF_VERSION)/terraform_$(TF_VERSION)_linux_amd64.zip \
+            -o terraform.zip
+          unzip -q terraform.zip
+          sudo mv terraform /usr/local/bin/terraform
+          terraform version
+        displayName: 'Install Terraform'
+
+      - task: AzureCLI@2
+        displayName: 'terraform init'
+        inputs:
+          azureSubscription: $(AZURE_SERVICE_CONNECTION)
+          scriptType: bash
+          scriptLocation: inlineScript
+          addSpnToEnvironment: true
+          inlineScript: |
+            cd $(TF_DIR)
+            export ARM_CLIENT_ID=$servicePrincipalId
+            export ARM_CLIENT_SECRET=$servicePrincipalKey
+            export ARM_TENANT_ID=$tenantId
+            export ARM_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
+
+            terraform init \
+              -backend-config="resource_group_name=$(TF_RESOURCE_GROUP)" \
+              -backend-config="storage_account_name=$(TF_STORAGE_ACCOUNT)" \
+              -backend-config="container_name=tfstate" \
+              -backend-config="key=zcommerce.terraform.tfstate" \
+              -input=false
+
+      - bash: |
+          cd $(TF_DIR) && terraform fmt -check -recursive
+        displayName: 'terraform fmt --check'
+
+      - task: AzureCLI@2
+        displayName: 'terraform validate'
+        inputs:
+          azureSubscription: $(AZURE_SERVICE_CONNECTION)
+          scriptType: bash
+          scriptLocation: inlineScript
+          addSpnToEnvironment: true
+          inlineScript: |
+            cd $(TF_DIR)
+            export ARM_CLIENT_ID=$servicePrincipalId
+            export ARM_CLIENT_SECRET=$servicePrincipalKey
+            export ARM_TENANT_ID=$tenantId
+            export ARM_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
+            terraform validate
+
+      - task: AzureCLI@2
+        displayName: 'terraform plan'
+        inputs:
+          azureSubscription: $(AZURE_SERVICE_CONNECTION)
+          scriptType: bash
+          scriptLocation: inlineScript
+          addSpnToEnvironment: true
+          inlineScript: |
+            cd $(TF_DIR)
+            export ARM_CLIENT_ID=$servicePrincipalId
+            export ARM_CLIENT_SECRET=$servicePrincipalKey
+            export ARM_TENANT_ID=$tenantId
+            export ARM_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
+
+            terraform plan \
+              -out=tfplan \
+              -var="prefix=zcommerce" \
+              -var="environment=prod" \
+              -input=false
+
+      - publish: $(TF_DIR)/tfplan
+        artifact: terraform-plan
+        displayName: 'Publish plan artifact'
+
+# ============================================================
+# STAGE 2: Apply (manual approval gate)
+# ============================================================
+- stage: Apply
+  displayName: 'Terraform Apply'
+  dependsOn: Plan
+  condition: succeeded()
+  jobs:
+
+  - deployment: ApplyInfrastructure
+    displayName: 'terraform apply'
+    environment: production   # ← configure approval in Azure DevOps → Environments
+    pool:
+      vmImage: ubuntu-latest
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+
+            - checkout: self
+
+            - bash: |
+                curl -fsSL https://releases.hashicorp.com/terraform/$(TF_VERSION)/terraform_$(TF_VERSION)_linux_amd64.zip \
+                  -o terraform.zip
+                unzip -q terraform.zip
+                sudo mv terraform /usr/local/bin/terraform
+              displayName: 'Install Terraform'
+
+            - download: current
+              artifact: terraform-plan
+
+            - bash: |
+                cp $(Pipeline.Workspace)/terraform-plan/tfplan $(TF_DIR)/tfplan
+              displayName: 'Restore plan file'
+
+            - task: AzureCLI@2
+              displayName: 'terraform init'
+              inputs:
+                azureSubscription: $(AZURE_SERVICE_CONNECTION)
+                scriptType: bash
+                scriptLocation: inlineScript
+                addSpnToEnvironment: true
+                inlineScript: |
+                  cd $(TF_DIR)
+                  export ARM_CLIENT_ID=$servicePrincipalId
+                  export ARM_CLIENT_SECRET=$servicePrincipalKey
+                  export ARM_TENANT_ID=$tenantId
+                  export ARM_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
+
+                  terraform init \
+                    -backend-config="resource_group_name=$(TF_RESOURCE_GROUP)" \
+                    -backend-config="storage_account_name=$(TF_STORAGE_ACCOUNT)" \
+                    -backend-config="container_name=tfstate" \
+                    -backend-config="key=zcommerce.terraform.tfstate" \
+                    -input=false
+
+            - task: AzureCLI@2
+              displayName: 'terraform apply'
+              inputs:
+                azureSubscription: $(AZURE_SERVICE_CONNECTION)
+                scriptType: bash
+                scriptLocation: inlineScript
+                addSpnToEnvironment: true
+                inlineScript: |
+                  cd $(TF_DIR)
+                  export ARM_CLIENT_ID=$servicePrincipalId
+                  export ARM_CLIENT_SECRET=$servicePrincipalKey
+                  export ARM_TENANT_ID=$tenantId
+                  export ARM_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
+
+                  terraform apply -auto-approve tfplan
+
+                  echo "ACR: $(terraform output -raw acr_login_server)"
+                  echo "AKS: $(terraform output -raw aks_cluster_name)"
+                  echo "RG:  $(terraform output -raw resource_group_name)"

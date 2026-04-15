@@ -1,0 +1,152 @@
+# ============================================================
+# Bootstrap Pipeline — one-time cluster setup
+#
+# Trigger: MANUAL ONLY
+# Run this once after terraform apply has provisioned AKS.
+# Normal app deployments go through app-pipeline.yml + ArgoCD.
+#
+# To run: Azure DevOps → Pipelines → Bootstrap → Run pipeline
+# Fill in cluster_name and resource_group from terraform output.
+#
+# Installs:
+#   - NGINX Ingress Controller (public LoadBalancer)
+#   - cert-manager + Let's Encrypt ClusterIssuer
+#   - Prometheus + Grafana (kube-prometheus-stack)
+#   - Loki log aggregation
+#   - ArgoCD (takes over all future deployments)
+#   - ArgoCD AppProject + Application for ZingyCommerce
+#
+# Variables (set in Pipelines → Library or pipeline variables):
+#   AZURE_SERVICE_CONNECTION — Azure RM service connection name
+# ============================================================
+
+trigger: none   # manual only
+
+parameters:
+  - name: cluster_name
+    displayName: 'AKS cluster name (terraform output aks_cluster_name)'
+    type: string
+  - name: resource_group
+    displayName: 'Resource group (terraform output resource_group_name)'
+    type: string
+
+stages:
+
+- stage: Bootstrap
+  displayName: 'Bootstrap K8s Tooling & ArgoCD'
+  jobs:
+
+  - deployment: BootstrapCluster
+    displayName: 'Install cluster tools and register ArgoCD app'
+    environment: production
+    pool:
+      vmImage: ubuntu-latest
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+
+            - checkout: self
+
+            - task: AzureCLI@2
+              displayName: 'Connect kubectl to AKS'
+              inputs:
+                azureSubscription: $(AZURE_SERVICE_CONNECTION)
+                scriptType: bash
+                scriptLocation: inlineScript
+                inlineScript: |
+                  az aks get-credentials \
+                    --resource-group ${{ parameters.resource_group }} \
+                    --name ${{ parameters.cluster_name }} \
+                    --overwrite-existing
+                  kubectl cluster-info
+
+            - bash: |
+                curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+                helm version
+              displayName: 'Install Helm'
+
+            - bash: |
+                helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+                helm repo update
+                helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
+                  --namespace ingress-nginx \
+                  --create-namespace \
+                  --set controller.replicaCount=2 \
+                  --set controller.service.annotations."service\.beta\.kubernetes\.io/azure-load-balancer-health-probe-request-path"=/healthz \
+                  --wait --timeout 5m
+                echo "Public IP:"
+                kubectl get svc -n ingress-nginx ingress-nginx-controller
+              displayName: 'Install NGINX Ingress Controller'
+
+            - bash: |
+                helm repo add jetstack https://charts.jetstack.io
+                helm repo update
+                helm upgrade --install cert-manager jetstack/cert-manager \
+                  --namespace cert-manager \
+                  --create-namespace \
+                  --set installCRDs=true \
+                  --wait --timeout 5m
+
+                kubectl apply -f - <<'EOF'
+                apiVersion: cert-manager.io/v1
+                kind: ClusterIssuer
+                metadata:
+                  name: letsencrypt-prod
+                spec:
+                  acme:
+                    server: https://acme-v02.api.letsencrypt.org/directory
+                    email: admin@chikwex.io
+                    privateKeySecretRef:
+                      name: letsencrypt-prod-key
+                    solvers:
+                      - http01:
+                          ingress:
+                            class: nginx
+                EOF
+              displayName: 'Install cert-manager + ClusterIssuer'
+
+            - bash: |
+                helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+                helm repo update
+                helm upgrade --install kube-prometheus-stack prometheus-community/kube-prometheus-stack \
+                  --namespace monitoring \
+                  --create-namespace \
+                  -f monitoring/prometheus/values.yaml \
+                  --wait --timeout 10m
+              displayName: 'Install Prometheus + Grafana'
+
+            - bash: |
+                helm repo add grafana https://grafana.github.io/helm-charts
+                helm repo update
+                helm upgrade --install loki grafana/loki-stack \
+                  --namespace monitoring \
+                  -f monitoring/loki/values.yaml \
+                  --wait --timeout 5m
+              displayName: 'Install Loki'
+
+            - bash: |
+                kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
+                kubectl apply -n argocd \
+                  -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+                kubectl apply -f argocd/install.yaml
+
+                kubectl rollout status deployment/argocd-server -n argocd --timeout=5m
+
+                echo "Initial admin password:"
+                kubectl -n argocd get secret argocd-initial-admin-secret \
+                  -o jsonpath="{.data.password}" | base64 -d
+                echo ""
+              displayName: 'Install ArgoCD'
+
+            - bash: |
+                kubectl wait --for=condition=Established \
+                  crd/applications.argoproj.io \
+                  crd/appprojects.argoproj.io \
+                  --timeout=60s
+
+                kubectl apply -f argocd/appproject.yaml
+                kubectl apply -f argocd/application.yaml
+
+                echo "Bootstrap complete. ArgoCD will now sync ZingyCommerce from Git automatically."
+              displayName: 'Register ArgoCD Application'

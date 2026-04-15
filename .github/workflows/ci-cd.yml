@@ -1,5 +1,13 @@
 # ============================================================
-# GitHub Actions CI/CD Pipeline — GitOps Edition
+# DEPRECATED — replaced by three focused pipelines:
+#   app.yml        — build images + GitOps tag update (on services/frontend/helm changes)
+#   infra.yml      — terraform plan + apply           (on infrastructure/ changes)
+#   bootstrap.yml  — one-time cluster setup           (manual trigger only)
+#
+# This file is kept for reference only. It is disabled (no trigger).
+# ============================================================
+
+# GitHub Actions CI/CD Pipeline — GitOps Edition (legacy monolith)
 #
 # Mirrors the Azure DevOps pipeline exactly:
 #
@@ -30,16 +38,10 @@
 #   ARGOCD_ADMIN_PASSWORD     — initial ArgoCD admin password
 # ============================================================
 
-name: ZingyCommerce CI/CD
+name: ZingyCommerce CI/CD (legacy — disabled)
 
 on:
-  push:
-    branches:
-      - main
-    paths-ignore:
-      - '*.md'
-      - 'ZingyCommerce-Project-Report.pdf'
-      - 'ZingyCommerce-Presentation.html'
+  workflow_dispatch:   # manual trigger only — use app.yml / infra.yml / bootstrap.yml instead
 
 env:
   TF_DIR: infrastructure
