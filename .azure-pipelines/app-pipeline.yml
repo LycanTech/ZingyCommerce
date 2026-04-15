@@ -5,7 +5,8 @@
 #   services/**, frontend/**, helm/**
 #
 # Stage 1: Builds all 5 Docker images in parallel (matrix)
-#          and pushes them to ACR tagged with the commit SHA.
+#          using az acr login — no Docker Registry service
+#          connection required, only the Azure service connection.
 # Stage 2: Updates image.tag in helm/values.yaml and commits
 #          back to Git; ArgoCD detects the change and rolls
 #          out new pods automatically (no kubectl needed).
@@ -14,7 +15,7 @@
 #
 # Variables (set in Pipelines → Library or pipeline variables):
 #   AZURE_SERVICE_CONNECTION — Azure RM service connection name
-#   ACR_SERVICE_CONNECTION   — Docker Registry service connection
+#   ACR_LOGIN_SERVER         — e.g. zcommercecommerceacrdev.azurecr.io
 #   GIT_USER_EMAIL           — bot commit email
 #   GIT_USER_NAME            — bot commit name
 # ============================================================
@@ -71,17 +72,27 @@ stages:
     steps:
       - checkout: self
 
-      - task: Docker@2
+      - task: AzureCLI@2
         displayName: 'Build & Push $(IMAGE_NAME)'
         inputs:
-          command: buildAndPush
-          repository: $(IMAGE_NAME)
-          dockerfile: $(DOCKERFILE)
-          containerRegistry: $(ACR_SERVICE_CONNECTION)
-          buildContext: $(BUILD_CONTEXT)
-          tags: |
-            $(IMAGE_TAG)
-            latest
+          azureSubscription: $(AZURE_SERVICE_CONNECTION)
+          scriptType: bash
+          scriptLocation: inlineScript
+          inlineScript: |
+            set -e
+            ACR_NAME=$(echo $(ACR_LOGIN_SERVER) | cut -d'.' -f1)
+            az acr login --name $ACR_NAME
+
+            docker build \
+              -t $(ACR_LOGIN_SERVER)/$(IMAGE_NAME):$(IMAGE_TAG) \
+              -t $(ACR_LOGIN_SERVER)/$(IMAGE_NAME):latest \
+              -f $(DOCKERFILE) \
+              $(BUILD_CONTEXT)
+
+            docker push $(ACR_LOGIN_SERVER)/$(IMAGE_NAME):$(IMAGE_TAG)
+            docker push $(ACR_LOGIN_SERVER)/$(IMAGE_NAME):latest
+
+            echo "Pushed $(ACR_LOGIN_SERVER)/$(IMAGE_NAME):$(IMAGE_TAG)"
 
 # ============================================================
 # STAGE 2: Update Helm image.tag → ArgoCD auto-deploys
