@@ -1,0 +1,24 @@
+# values-dev.yaml — Development environment overrides
+# Usage: helm upgrade --install zingycommerce ./helm/zingycommerce -f values-dev.yaml
+
+global:
+  environment: dev
+
+image:
+  tag: latest
+  pullPolicy: Always        # Always pull in dev so latest image is used
+
+# Fewer replicas to save cluster resources in dev
+frontend:      { replicaCount: 1 }
+apiGateway:    { replicaCount: 1 }
+userService:   { replicaCount: 1 }
+productService: { replicaCount: 1 }
+orderService:  { replicaCount: 1 }
+
+ingress:
+  host: dev.zingycommerce.chikwex.io
+  tls:
+    enabled: false           # No TLS cert needed for dev
+
+autoscaling:
+  enabled: false             # Disable HPA in dev to save resources

@@ -1,0 +1,66 @@
+# argocd/application.yaml
+#
+# What is an ArgoCD Application?
+# --------------------------------
+# This is the core ArgoCD resource. It tells ArgoCD:
+#   - WHERE to find the Helm chart (Git repo + path)
+#   - WHERE to deploy it (AKS cluster + namespace)
+#   - WHICH values file to use (values-prod.yaml for production)
+#   - HOW to sync (automatic, self-healing)
+#
+# GitOps flow:
+#   1. CI builds Docker image → pushes to ACR with tag=<git-sha>
+#   2. CI updates image.tag in helm/zingycommerce/values.yaml → commits to Git
+#   3. ArgoCD detects the Git change (polls every 3 min or via webhook)
+#   4. ArgoCD runs: helm upgrade zingycommerce ./helm/zingycommerce -f values-prod.yaml
+#   5. New pods roll out with zero downtime (RollingUpdate strategy)
+#
+# This means your cluster ALWAYS matches what is in Git. No manual kubectl needed.
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: zingycommerce
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: zingycommerce
+  # This finalizer ensures ArgoCD deletes all K8s resources
+  # it created when you delete this Application object
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: zingycommerce
+
+  source:
+    # Primary source: GitHub. To switch to Azure DevOps, replace with:
+    # repoURL: https://chikweazinge@dev.azure.com/chikweazinge/ZingyCommerce/_git/ZingyCommerce
+    repoURL: https://github.com/LycanTech/ZingyCommerce.git
+    targetRevision: main  # always track the main branch
+    path: helm/zingycommerce  # the Helm chart lives here
+
+    helm:
+      # Stack prod values on top of base values.yaml
+      valueFiles:
+        - values.yaml
+        - values-prod.yaml
+      # You can also override individual values here without editing files:
+      # parameters:
+      #   - name: image.tag
+      #     value: "abc1234"
+
+  destination:
+    server: https://kubernetes.default.svc  # deploy to the same cluster ArgoCD runs in
+    namespace: zcommerce
+
+  syncPolicy:
+    automated:
+      # Automatically sync when ArgoCD detects a Git change
+      prune: true      # delete K8s resources that are no longer in Git
+      selfHeal: true   # if someone manually changes a resource, ArgoCD reverts it
+    syncOptions:
+      - CreateNamespace=true  # create 'zcommerce' namespace if it doesn't exist
+      - PrunePropagationPolicy=foreground
+      - PruneLast=true  # delete old resources only AFTER new ones are healthy
+
+  # Health checks — ArgoCD waits for all pods to be ready before marking sync as successful
+  revisionHistoryLimit: 5  # keep last 5 deployed versions (for rollback)

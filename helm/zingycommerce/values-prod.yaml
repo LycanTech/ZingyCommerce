@@ -1,0 +1,26 @@
+# values-prod.yaml — Production environment overrides
+# Usage: helm upgrade --install zingycommerce ./helm/zingycommerce -f values-prod.yaml
+
+global:
+  environment: prod
+
+image:
+  pullPolicy: IfNotPresent   # Use cached image — tag is pinned by CI
+
+# Full replicas for high availability
+frontend:      { replicaCount: 3 }
+apiGateway:    { replicaCount: 3 }
+userService:   { replicaCount: 3 }
+productService: { replicaCount: 3 }
+orderService:  { replicaCount: 3 }
+
+ingress:
+  host: zingycommerce.chikwex.io
+  tls:
+    enabled: true
+
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 60

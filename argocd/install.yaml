@@ -1,0 +1,72 @@
+# argocd/install.yaml
+#
+# What is ArgoCD?
+# ---------------
+# ArgoCD is a "GitOps" continuous delivery tool for Kubernetes.
+# Instead of your CI pipeline running "kubectl apply" directly,
+# ArgoCD watches your Git repository. When it detects a change
+# (e.g. a new image tag in values.yaml), it automatically syncs
+# the Helm chart to your AKS cluster.
+#
+# This makes deployments:
+#   - Auditable  — every deploy is a Git commit with a message
+#   - Reversible — rolling back = reverting a commit
+#   - Secure     — CI never needs kubectl credentials
+#
+# Installation steps:
+#   1. kubectl create namespace argocd
+#   2. kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+#   3. kubectl apply -f argocd/install.yaml    ← this file (patches + ingress)
+#   4. kubectl apply -f argocd/appproject.yaml
+#   5. kubectl apply -f argocd/application.yaml
+#
+# Get the initial admin password:
+#   kubectl -n argocd get secret argocd-initial-admin-secret \
+#     -o jsonpath="{.data.password}" | base64 -d
+#
+# Then open https://argocd.chikwex.io (after DNS is set up) and log in.
+
+---
+# Patch ArgoCD server to disable TLS internally
+# (TLS is terminated at the NGINX Ingress, so ArgoCD doesn't need it)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-cmd-params-cm
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: argocd
+data:
+  # Run ArgoCD server in insecure mode — NGINX Ingress handles TLS
+  server.insecure: "true"
+
+---
+# NGINX Ingress for ArgoCD UI — access at https://argocd.chikwex.io
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: argocd-server-ingress
+  namespace: argocd
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    # ArgoCD uses gRPC + HTTP on the same port; this annotation enables that
+    nginx.ingress.kubernetes.io/backend-protocol: HTTP
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - argocd.chikwex.io
+      secretName: argocd-tls
+  rules:
+    - host: argocd.chikwex.io
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: argocd-server
+                port:
+                  number: 80

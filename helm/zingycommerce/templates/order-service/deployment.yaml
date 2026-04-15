@@ -1,0 +1,46 @@
+{{- if .Values.orderService.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: order-service
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "zingycommerce.labels" . | nindent 4 }}
+    app.kubernetes.io/name: order-service
+  annotations:
+    app.kubernetes.io/managed-by: ArgoCD
+spec:
+  replicas: {{ .Values.orderService.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "zingycommerce.selectorLabels" "order-service" | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "zingycommerce.selectorLabels" "order-service" | nindent 8 }}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "{{ .Values.orderService.port }}"
+        prometheus.io/path: "/health"
+    spec:
+      containers:
+        - name: order-service
+          image: {{ include "zingycommerce.image" (dict "root" . "service" "order-service") }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.orderService.port }}
+          env:
+            - name: PORT
+              value: "{{ .Values.orderService.port }}"
+            # Order service calls product-service to check/deduct stock
+            - name: PRODUCT_SERVICE_URL
+              value: "http://product-service:{{ .Values.productService.port }}"
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.jwtSecretName }}
+                  key: jwt-secret
+          resources:
+            {{- toYaml .Values.orderService.resources | nindent 12 }}
+          {{- include "zingycommerce.probes" (dict "root" . "port" .Values.orderService.port) | nindent 10 }}
+{{- end }}

@@ -1,0 +1,45 @@
+{{- if .Values.userService.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: user-service
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "zingycommerce.labels" . | nindent 4 }}
+    app.kubernetes.io/name: user-service
+  annotations:
+    # ArgoCD uses this to track which Git commit deployed this
+    app.kubernetes.io/managed-by: ArgoCD
+spec:
+  replicas: {{ .Values.userService.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "zingycommerce.selectorLabels" "user-service" | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "zingycommerce.selectorLabels" "user-service" | nindent 8 }}
+      annotations:
+        # Prometheus auto-discovery — scrape /metrics on this pod
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "{{ .Values.userService.port }}"
+        prometheus.io/path: "/health"
+    spec:
+      containers:
+        - name: user-service
+          image: {{ include "zingycommerce.image" (dict "root" . "service" "user-service") }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.userService.port }}
+          env:
+            - name: PORT
+              value: "{{ .Values.userService.port }}"
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.jwtSecretName }}
+                  key: jwt-secret
+          resources:
+            {{- toYaml .Values.userService.resources | nindent 12 }}
+          {{- include "zingycommerce.probes" (dict "root" . "port" .Values.userService.port) | nindent 10 }}
+{{- end }}

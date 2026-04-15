@@ -1,0 +1,83 @@
+# ============================================================
+# Kubernetes manifests for User Service
+#
+# Two resources are defined here:
+#
+# 1. Deployment — tells Kubernetes HOW to run the container
+#    - How many replicas (copies) to run
+#    - Which Docker image to use
+#    - Environment variables
+#    - CPU/memory limits
+#
+# 2. Service — gives the Deployment a stable internal address
+#    so other pods can find it by name: "user-service"
+# ============================================================
+
+# ----- DEPLOYMENT -----
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: user-service
+  namespace: zcommerce
+  labels:
+    app: user-service
+spec:
+  replicas: 2                  # Run 2 copies for high availability
+  selector:
+    matchLabels:
+      app: user-service
+  template:
+    metadata:
+      labels:
+        app: user-service
+    spec:
+      containers:
+        - name: user-service
+          # Replace <ACR_NAME> with your Azure Container Registry name
+          # e.g., myacr.azurecr.io/user-service:latest
+          image: <ACR_NAME>.azurecr.io/user-service:latest
+          ports:
+            - containerPort: 3001
+          env:
+            - name: PORT
+              value: "3001"
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: ecommerce-secrets
+                  key: jwt-secret
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "100m"      # 0.1 CPU core
+            limits:
+              memory: "256Mi"
+              cpu: "500m"      # 0.5 CPU core
+          # Health checks — Kubernetes restarts the container if these fail
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3001
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3001
+            initialDelaySeconds: 5
+            periodSeconds: 10
+
+---
+# ----- SERVICE -----
+apiVersion: v1
+kind: Service
+metadata:
+  name: user-service
+  namespace: zcommerce
+spec:
+  selector:
+    app: user-service           # Route to pods with this label
+  ports:
+    - port: 3001                # Port other services use
+      targetPort: 3001          # Port the container listens on
+  type: ClusterIP               # Internal only — not exposed to internet

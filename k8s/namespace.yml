@@ -1,0 +1,14 @@
+# ============================================================
+# Kubernetes Namespace
+#
+# What is a Namespace?
+#   A namespace is a way to group/isolate Kubernetes resources.
+#   Think of it like a folder — everything for this app lives
+#   inside "ecommerce" so it doesn't clash with other apps.
+# ============================================================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ecommerce
+  labels:
+    app: ecommerce

@@ -1,0 +1,21 @@
+{{- if .Values.apiGateway.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-gateway
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "zingycommerce.labels" . | nindent 4 }}
+    app.kubernetes.io/name: api-gateway
+spec:
+  # ClusterIP — the Ingress controller routes external traffic here;
+  # no need for a public LoadBalancer on the gateway itself
+  type: ClusterIP
+  selector:
+    {{- include "zingycommerce.selectorLabels" "api-gateway" | nindent 4 }}
+  ports:
+    - port: {{ .Values.apiGateway.port }}
+      targetPort: {{ .Values.apiGateway.port }}
+      protocol: TCP
+      name: http
+{{- end }}

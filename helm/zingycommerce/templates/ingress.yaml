@@ -1,0 +1,54 @@
+{{- if .Values.ingress.enabled }}
+# Ingress — a single public entry point that routes HTTP/HTTPS traffic
+# to the correct internal services based on the URL path.
+#
+# How it works:
+#   Browser → Azure Load Balancer → NGINX Ingress Controller (pod in K8s)
+#           → routes by path → frontend / api-gateway pods
+#
+# cert-manager watches for the tls.secretName and automatically obtains
+# a Let's Encrypt TLS certificate for the host below.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: zingycommerce-ingress
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "zingycommerce.labels" . | nindent 4 }}
+  annotations:
+    {{- toYaml .Values.ingress.annotations | nindent 4 }}
+    # Rewrite /api/... → /... before forwarding to api-gateway
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    # Allow requests up to 10 MB (for potential file uploads)
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- if .Values.ingress.tls.enabled }}
+  tls:
+    - hosts:
+        - {{ .Values.ingress.host }}
+      # cert-manager creates this Secret automatically with the TLS cert
+      secretName: {{ .Values.ingress.tls.secretName }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.ingress.host }}
+      http:
+        paths:
+          # API traffic — all /api/* calls are forwarded to the api-gateway
+          # The rewrite-target annotation strips /api from the path
+          - path: /api(/|$)(.*)
+            pathType: Prefix
+            backend:
+              service:
+                name: api-gateway
+                port:
+                  number: {{ .Values.apiGateway.port }}
+          # Everything else → frontend (React/HTML SPA)
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
+                port:
+                  number: {{ .Values.frontend.port }}
+{{- end }}

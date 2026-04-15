@@ -1,0 +1,108 @@
+# ============================================================
+# docker-compose.yml
+#
+# What is Docker Compose?
+#   It lets you define and run MULTIPLE containers together
+#   with a single command: `docker compose up`
+#
+# This file is for LOCAL DEVELOPMENT ONLY.
+# In production we use Kubernetes on Azure (AKS).
+#
+# Network: all services join the "ecommerce-net" network.
+# On this network, each service is reachable by its name:
+#   e.g., "user-service" resolves to the user-service container
+# ============================================================
+
+version: '3.9'
+
+services:
+
+  # ---------------------------------------------------------
+  # API Gateway — the only service exposed to your browser
+  # ---------------------------------------------------------
+  api-gateway:
+    build: ./services/api-gateway
+    container_name: api-gateway
+    ports:
+      - "4000:3000"       # localhost:4000 → container:3000
+    environment:
+      PORT: 3000
+      JWT_SECRET: local_dev_secret_change_in_production
+      USER_SERVICE_URL:    http://user-service:3001
+      PRODUCT_SERVICE_URL: http://product-service:3002
+      ORDER_SERVICE_URL:   http://order-service:3003
+    depends_on:
+      - user-service
+      - product-service
+      - order-service
+    networks:
+      - ecommerce-net
+    restart: unless-stopped
+
+  # ---------------------------------------------------------
+  # User Service — authentication & user management
+  # ---------------------------------------------------------
+  user-service:
+    build: ./services/user-service
+    container_name: user-service
+    environment:
+      PORT: 3001
+      JWT_SECRET: local_dev_secret_change_in_production
+    volumes:
+      # Mount to a directory so SQLite can create the .db file inside it
+      - user-data:/app/data
+    networks:
+      - ecommerce-net
+    restart: unless-stopped
+
+  # ---------------------------------------------------------
+  # Product Service — product catalog
+  # ---------------------------------------------------------
+  product-service:
+    build: ./services/product-service
+    container_name: product-service
+    environment:
+      PORT: 3002
+    volumes:
+      - product-data:/app/data
+    networks:
+      - ecommerce-net
+    restart: unless-stopped
+
+  # ---------------------------------------------------------
+  # Order Service — order placement and tracking
+  # ---------------------------------------------------------
+  order-service:
+    build: ./services/order-service
+    container_name: order-service
+    environment:
+      PORT: 3003
+      PRODUCT_SERVICE_URL: http://product-service:3002
+    volumes:
+      - order-data:/app/data
+    networks:
+      - ecommerce-net
+    restart: unless-stopped
+
+  # ---------------------------------------------------------
+  # Frontend — static HTML served by nginx
+  # ---------------------------------------------------------
+  frontend:
+    build: ./frontend
+    container_name: frontend
+    ports:
+      - "8081:80"         # localhost:8081 → nginx container
+    networks:
+      - ecommerce-net
+    restart: unless-stopped
+
+# Named volumes preserve database data between container restarts
+volumes:
+  user-data:
+  product-data:
+  order-data:
+
+# All containers can talk to each other on this internal network
+networks:
+  ecommerce-net:
+    driver: bridge

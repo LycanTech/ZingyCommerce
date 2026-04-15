@@ -1,0 +1,121 @@
+# =============================================================
+# values.yaml — Default Helm values for ZingyCommerce
+#
+# Override any value for a specific environment with:
+#   helm upgrade --install zingycommerce ./helm/zingycommerce \
+#     -f helm/zingycommerce/values-prod.yaml
+#
+# Or override a single value:
+#   helm upgrade --install ... --set image.tag=42
+# =============================================================
+
+# ----- Global settings -----
+global:
+  # Azure Container Registry login server
+  # Set this at deploy time: --set global.acrLoginServer=chikwex...azurecr.io
+  acrLoginServer: "chikwexcommerceacrdev.azurecr.io"
+  namespace: zcommerce
+  environment: dev
+
+# ----- Image -----
+image:
+  # Tag is set by the CI pipeline to the Build ID (e.g. "42")
+  # Using a pinned tag (not latest) guarantees reproducible deploys
+  tag: latest
+  pullPolicy: IfNotPresent
+
+# ----- JWT Secret -----
+# In production, create the secret manually with:
+#   kubectl create secret generic zingycommerce-secrets \
+#     --from-literal=jwt-secret="$(openssl rand -hex 32)" -n zcommerce
+jwtSecretName: zingycommerce-secrets
+
+# =============================================================
+# Service-level configuration
+# Each block maps to a Deployment + Service in templates/
+# =============================================================
+
+frontend:
+  enabled: true
+  replicaCount: 2
+  port: 80
+  resources:
+    requests: { cpu: "50m",  memory: "64Mi"  }
+    limits:   { cpu: "200m", memory: "128Mi" }
+
+apiGateway:
+  enabled: true
+  replicaCount: 2
+  port: 3000
+  # URLs are Kubernetes internal DNS names (service-name.namespace.svc.cluster.local)
+  userServiceUrl:    "http://user-service:3001"
+  productServiceUrl: "http://product-service:3002"
+  orderServiceUrl:   "http://order-service:3003"
+  resources:
+    requests: { cpu: "100m", memory: "64Mi"  }
+    limits:   { cpu: "500m", memory: "256Mi" }
+
+userService:
+  enabled: true
+  replicaCount: 2
+  port: 3001
+  resources:
+    requests: { cpu: "100m", memory: "64Mi"  }
+    limits:   { cpu: "500m", memory: "256Mi" }
+
+productService:
+  enabled: true
+  replicaCount: 2
+  port: 3002
+  resources:
+    requests: { cpu: "100m", memory: "64Mi"  }
+    limits:   { cpu: "500m", memory: "256Mi" }
+
+orderService:
+  enabled: true
+  replicaCount: 2
+  port: 3003
+  productServiceUrl: "http://product-service:3002"
+  resources:
+    requests: { cpu: "100m", memory: "64Mi"  }
+    limits:   { cpu: "500m", memory: "256Mi" }
+
+# =============================================================
+# Ingress (NGINX)
+# Requires NGINX Ingress Controller installed in the cluster.
+# =============================================================
+ingress:
+  enabled: true
+  className: nginx
+  # TLS is managed by cert-manager (see annotations)
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+  # Set your real domain here (or use nip.io with your public IP for testing)
+  host: zingycommerce.chikwex.io
+  tls:
+    enabled: true
+    secretName: zingycommerce-tls
+
+# =============================================================
+# Horizontal Pod Autoscaler
+# =============================================================
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 70
+
+# =============================================================
+# Probes (health checks used by Kubernetes)
+# =============================================================
+probes:
+  liveness:
+    path: /health
+    initialDelaySeconds: 10
+    periodSeconds: 30
+  readiness:
+    path: /health
+    initialDelaySeconds: 5
+    periodSeconds: 10

@@ -1,0 +1,19 @@
+# ============================================================
+# terraform.tfvars.example
+#
+# Copy this file to terraform.tfvars and fill in your values:
+#   cp terraform.tfvars.example terraform.tfvars
+#
+# IMPORTANT: Never commit terraform.tfvars to Git!
+# It is already in .gitignore.
+# ============================================================
+
+location    = "eastus"
+environment = "dev"
+prefix      = "zingy"       # Change this to your own prefix (3-8 chars)
+
+node_count   = 2            # 1 for cheapest dev, 3 for production HA
+node_vm_size = "Standard_B2s"
+
+acr_sku            = "Basic"
+log_retention_days = 30

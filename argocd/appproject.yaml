@@ -1,0 +1,57 @@
+# argocd/appproject.yaml
+#
+# What is an AppProject?
+# ----------------------
+# AppProject defines RBAC (Role-Based Access Control) boundaries for ArgoCD.
+# It controls:
+#   - Which Git repos ArgoCD is allowed to deploy from
+#   - Which Kubernetes clusters it can deploy to
+#   - Which namespaces it can create resources in
+#
+# Think of it as a security boundary: even if someone compromises ArgoCD,
+# they can only affect resources within the scopes defined here.
+
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: zingycommerce
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: zingycommerce
+spec:
+  description: "ZingyCommerce ecommerce platform — all microservices"
+
+  # Allow deployments from either remote (GitHub or Azure DevOps)
+  sourceRepos:
+    - "https://github.com/LycanTech/ZingyCommerce.git"
+    - "https://chikweazinge@dev.azure.com/chikweazinge/ZingyCommerce/_git/ZingyCommerce"
+    # Also allow the official Helm chart repos used by monitoring/ingress
+    - "https://prometheus-community.github.io/helm-charts"
+    - "https://grafana.github.io/helm-charts"
+    - "https://kubernetes.github.io/ingress-nginx"
+    - "https://charts.jetstack.io"
+
+  # Only allow deployments TO these namespaces in the local cluster
+  destinations:
+    - server: https://kubernetes.default.svc  # the AKS cluster ArgoCD runs in
+      namespace: zcommerce
+    - server: https://kubernetes.default.svc
+      namespace: monitoring
+    - server: https://kubernetes.default.svc
+      namespace: ingress-nginx
+    - server: https://kubernetes.default.svc
+      namespace: cert-manager
+
+  # Allow all cluster-scoped resources (CRDs, ClusterRoles, etc.)
+  clusterResourceWhitelist:
+    - group: "*"
+      kind: "*"
+
+  # Roles — "deployer" can sync apps but not delete the project itself
+  roles:
+    - name: deployer
+      description: CI pipeline role — can sync and get app status
+      policies:
+        - p, proj:zingycommerce:deployer, applications, get, zingycommerce/*, allow
+        - p, proj:zingycommerce:deployer, applications, sync, zingycommerce/*, allow
+      jwtTokens: []  # tokens are created via: argocd proj role create-token zingycommerce deployer

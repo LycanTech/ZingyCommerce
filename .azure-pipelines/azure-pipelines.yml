@@ -1,0 +1,536 @@
+# ============================================================
+# Azure DevOps CI/CD Pipeline — GitOps Edition
+#
+# HOW THIS WORKS (GitOps model with ArgoCD):
+# ──────────────────────────────────────────
+#   OLD way (imperative): CI runs kubectl apply → pushes changes to cluster
+#   NEW way (GitOps):     CI updates Git → ArgoCD detects change → syncs cluster
+#
+#   Stage 1 (CI):
+#     - Validates Terraform
+#     - Builds and pushes Docker images with the commit SHA as the tag
+#     - Updates image.tag in helm/zingycommerce/values.yaml
+#     - Commits that change back to Git
+#
+#   Stage 2 (TerraformApply):
+#     - Manual approval gate (someone must click "Approve")
+#     - Runs terraform apply to create/update Azure infra
+#
+#   Stage 3 (BootstrapArgoCD):
+#     - Installs ArgoCD + NGINX Ingress + cert-manager via Helm (first run only)
+#     - Applies the ArgoCD Application manifest
+#     - From this point forward, ArgoCD handles ALL Kubernetes deployments
+#     - ArgoCD polls Git every 3 minutes; when it sees the new image tag,
+#       it syncs the Helm chart with a rolling update
+#
+# Variables to set in Azure DevOps → Pipelines → Variables:
+#   AZURE_SERVICE_CONNECTION  — name of your Azure service connection
+#   ACR_SERVICE_CONNECTION    — name of your ACR Docker registry connection
+#   TF_STORAGE_ACCOUNT        — Azure storage account name for Terraform state
+#   TF_RESOURCE_GROUP         — resource group containing the storage account
+#   GIT_USER_EMAIL            — email for the bot commit (e.g. ci@chikwex.io)
+#   GIT_USER_NAME             — name for the bot commit (e.g. "ZingyCommerce CI")
+#   ARGOCD_ADMIN_PASSWORD     — initial ArgoCD admin password (set as secret)
+# ============================================================
+
+trigger:
+  branches:
+    include:
+      - main
+  paths:
+    exclude:
+      - '*.md'
+      - 'ZingyCommerce-Project-Report.pdf'
+      - 'ZingyCommerce-Presentation.html'
+
+variables:
+  IMAGE_TAG: $(Build.SourceVersion)   # full Git SHA — unique, traceable, immutable
+  IMAGE_TAG_SHORT: $[substring(variables['Build.SourceVersion'], 0, 8)]  # e.g. "a1b2c3d4"
+  TF_DIR: 'infrastructure'
+  HELM_CHART_DIR: 'helm/zingycommerce'
+
+stages:
+
+# ============================================================
+# STAGE 1: CI
+# Job 1: Terraform validate + plan  (runs in parallel)
+# Job 2: Build Docker images + update Helm values in Git
+# ============================================================
+- stage: CI
+  displayName: 'CI — Validate, Build & Update Helm Values'
+  jobs:
+
+  # ----------------------------------------------------------
+  # Job 1: Terraform validation
+  # ----------------------------------------------------------
+  - job: TerraformValidate
+    displayName: 'Terraform fmt / validate / plan'
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+
+      - checkout: self
+        fetchDepth: 0    # full history needed for git commit in Job 2
+
+      - bash: |
+          TERRAFORM_VERSION="1.8.5"
+          curl -fsSL https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip -o terraform.zip
+          unzip -q terraform.zip
+          sudo mv terraform /usr/local/bin/terraform
+          terraform version
+        displayName: 'Install Terraform'
+
+      - task: AzureCLI@2
+        displayName: 'terraform init'
+        inputs:
+          azureSubscription: '$(AZURE_SERVICE_CONNECTION)'
+          scriptType: 'bash'
+          scriptLocation: 'inlineScript'
+          addSpnToEnvironment: true
+          inlineScript: |
+            cd $(TF_DIR)
+            export ARM_CLIENT_ID=$servicePrincipalId
+            export ARM_CLIENT_SECRET=$servicePrincipalKey
+            export ARM_TENANT_ID=$tenantId
+            export ARM_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
+
+            terraform init \
+              -backend-config="resource_group_name=$(TF_RESOURCE_GROUP)" \
+              -backend-config="storage_account_name=$(TF_STORAGE_ACCOUNT)" \
+              -backend-config="container_name=tfstate" \
+              -backend-config="key=ecommerce.terraform.tfstate" \
+              -input=false
+
+      - bash: |
+          cd $(TF_DIR)
+          terraform fmt -check -recursive
+          echo "Formatting OK"
+        displayName: 'terraform fmt --check'
+
+      - task: AzureCLI@2
+        displayName: 'terraform validate'
+        inputs:
+          azureSubscription: '$(AZURE_SERVICE_CONNECTION)'
+          scriptType: 'bash'
+          scriptLocation: 'inlineScript'
+          addSpnToEnvironment: true
+          inlineScript: |
+            cd $(TF_DIR)
+            export ARM_CLIENT_ID=$servicePrincipalId
+            export ARM_CLIENT_SECRET=$servicePrincipalKey
+            export ARM_TENANT_ID=$tenantId
+            export ARM_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
+            terraform validate
+
+      - task: AzureCLI@2
+        displayName: 'terraform plan'
+        inputs:
+          azureSubscription: '$(AZURE_SERVICE_CONNECTION)'
+          scriptType: 'bash'
+          scriptLocation: 'inlineScript'
+          addSpnToEnvironment: true
+          inlineScript: |
+            cd $(TF_DIR)
+            export ARM_CLIENT_ID=$servicePrincipalId
+            export ARM_CLIENT_SECRET=$servicePrincipalKey
+            export ARM_TENANT_ID=$tenantId
+            export ARM_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
+
+            terraform plan \
+              -out=tfplan \
+              -var="environment=prod" \
+              -var="prefix=chikwex" \
+              -input=false
+
+      - publish: '$(TF_DIR)/tfplan'
+        artifact: terraform-plan
+        displayName: 'Publish plan artifact'
+
+  # ----------------------------------------------------------
+  # Job 2: Build Docker images and update Helm values.yaml
+  # This is the GitOps "trigger" — updating image.tag in Git
+  # causes ArgoCD to roll out new pods automatically.
+  # ----------------------------------------------------------
+  - job: BuildAndUpdateHelm
+    displayName: 'Build Images & Update Helm image.tag'
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+
+      - checkout: self
+        persistCredentials: true   # needed so we can git push at the end
+        fetchDepth: 0
+
+      # Login to ACR so we can push images
+      - task: Docker@2
+        displayName: 'Login to ACR'
+        inputs:
+          command: login
+          containerRegistry: '$(ACR_SERVICE_CONNECTION)'
+
+      # Build and push all 5 service images in parallel using matrix
+      # Each image is tagged with BOTH the full SHA (immutable) and "latest"
+      - task: Docker@2
+        displayName: 'Build & Push user-service'
+        inputs:
+          command: buildAndPush
+          repository: 'user-service'
+          dockerfile: 'services/user-service/Dockerfile'
+          containerRegistry: '$(ACR_SERVICE_CONNECTION)'
+          buildContext: 'services/user-service'
+          tags: |
+            $(Build.SourceVersion)
+            latest
+
+      - task: Docker@2
+        displayName: 'Build & Push product-service'
+        inputs:
+          command: buildAndPush
+          repository: 'product-service'
+          dockerfile: 'services/product-service/Dockerfile'
+          containerRegistry: '$(ACR_SERVICE_CONNECTION)'
+          buildContext: 'services/product-service'
+          tags: |
+            $(Build.SourceVersion)
+            latest
+
+      - task: Docker@2
+        displayName: 'Build & Push order-service'
+        inputs:
+          command: buildAndPush
+          repository: 'order-service'
+          dockerfile: 'services/order-service/Dockerfile'
+          containerRegistry: '$(ACR_SERVICE_CONNECTION)'
+          buildContext: 'services/order-service'
+          tags: |
+            $(Build.SourceVersion)
+            latest
+
+      - task: Docker@2
+        displayName: 'Build & Push api-gateway'
+        inputs:
+          command: buildAndPush
+          repository: 'api-gateway'
+          dockerfile: 'services/api-gateway/Dockerfile'
+          containerRegistry: '$(ACR_SERVICE_CONNECTION)'
+          buildContext: 'services/api-gateway'
+          tags: |
+            $(Build.SourceVersion)
+            latest
+
+      - task: Docker@2
+        displayName: 'Build & Push frontend'
+        inputs:
+          command: buildAndPush
+          repository: 'frontend'
+          dockerfile: 'frontend/Dockerfile'
+          containerRegistry: '$(ACR_SERVICE_CONNECTION)'
+          buildContext: 'frontend'
+          tags: |
+            $(Build.SourceVersion)
+            latest
+
+      # ── GitOps Trigger ──────────────────────────────────────────
+      # Update image.tag in values.yaml and commit back to Git.
+      # ArgoCD will detect this commit and roll out the new image.
+      #
+      # We use `yq` (YAML processor) to update only the image.tag field
+      # without touching any other values.
+      - bash: |
+          set -e
+
+          # Install yq — a YAML command-line editor
+          curl -fsSL https://github.com/mikefarah/yq/releases/download/v4.40.5/yq_linux_amd64 \
+            -o /usr/local/bin/yq && chmod +x /usr/local/bin/yq
+
+          CHART_VALUES="$(HELM_CHART_DIR)/values.yaml"
+          NEW_TAG="$(Build.SourceVersion)"
+          SHORT_SHA="${NEW_TAG:0:8}"
+
+          echo "Updating image.tag to: $NEW_TAG"
+          yq -i ".image.tag = \"$NEW_TAG\"" "$CHART_VALUES"
+
+          echo ""
+          echo "--- Updated values.yaml snippet ---"
+          grep "tag:" "$CHART_VALUES"
+
+          # Configure git identity for the bot commit
+          git config user.email "$(GIT_USER_EMAIL)"
+          git config user.name "$(GIT_USER_NAME)"
+
+          # Check if there's actually a change (first run might already be up to date)
+          if git diff --quiet "$CHART_VALUES"; then
+            echo "No change in image.tag — nothing to commit."
+          else
+            git add "$CHART_VALUES"
+            git commit -m "chore: update image.tag to ${SHORT_SHA} [skip ci]
+
+          Deployed by: Azure DevOps pipeline $(Build.BuildId)
+          Commit: $(Build.SourceVersion)
+          Branch: $(Build.SourceBranch)
+
+          ArgoCD will auto-sync this change to AKS."
+
+            git push origin HEAD:main
+            echo "Pushed image.tag update. ArgoCD will pick this up within 3 minutes."
+          fi
+        displayName: 'Update image.tag in Helm values.yaml (GitOps trigger)'
+
+# ============================================================
+# STAGE 2: Terraform Apply
+# Creates/updates Azure infrastructure (AKS, ACR, etc.)
+# Requires manual approval.
+# ============================================================
+- stage: TerraformApply
+  displayName: 'CD — Terraform Apply (infra)'
+  dependsOn: CI
+  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+  jobs:
+
+  - deployment: ApplyInfrastructure
+    displayName: 'terraform apply'
+    environment: 'production'   # configure approval gate here in Azure DevOps
+    pool:
+      vmImage: 'ubuntu-latest'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+
+            - checkout: self
+
+            - bash: |
+                TERRAFORM_VERSION="1.8.5"
+                curl -fsSL https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip -o terraform.zip
+                unzip -q terraform.zip
+                sudo mv terraform /usr/local/bin/terraform
+              displayName: 'Install Terraform'
+
+            - download: current
+              artifact: terraform-plan
+
+            - bash: cp $(Pipeline.Workspace)/terraform-plan/tfplan $(TF_DIR)/tfplan
+              displayName: 'Restore plan file'
+
+            - task: AzureCLI@2
+              displayName: 'terraform init'
+              inputs:
+                azureSubscription: '$(AZURE_SERVICE_CONNECTION)'
+                scriptType: 'bash'
+                scriptLocation: 'inlineScript'
+                addSpnToEnvironment: true
+                inlineScript: |
+                  cd $(TF_DIR)
+                  export ARM_CLIENT_ID=$servicePrincipalId
+                  export ARM_CLIENT_SECRET=$servicePrincipalKey
+                  export ARM_TENANT_ID=$tenantId
+                  export ARM_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
+
+                  terraform init \
+                    -backend-config="resource_group_name=$(TF_RESOURCE_GROUP)" \
+                    -backend-config="storage_account_name=$(TF_STORAGE_ACCOUNT)" \
+                    -backend-config="container_name=tfstate" \
+                    -backend-config="key=ecommerce.terraform.tfstate" \
+                    -input=false
+
+            - task: AzureCLI@2
+              displayName: 'terraform apply'
+              name: tfApply
+              inputs:
+                azureSubscription: '$(AZURE_SERVICE_CONNECTION)'
+                scriptType: 'bash'
+                scriptLocation: 'inlineScript'
+                addSpnToEnvironment: true
+                inlineScript: |
+                  cd $(TF_DIR)
+                  export ARM_CLIENT_ID=$servicePrincipalId
+                  export ARM_CLIENT_SECRET=$servicePrincipalKey
+                  export ARM_TENANT_ID=$tenantId
+                  export ARM_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
+
+                  terraform apply -auto-approve tfplan
+
+                  # Export outputs for Stage 3
+                  AKS_NAME=$(terraform output -raw aks_cluster_name)
+                  ACR_SERVER=$(terraform output -raw acr_login_server)
+                  RG_NAME=$(terraform output -raw resource_group_name)
+
+                  echo "##vso[task.setvariable variable=AKS_CLUSTER_NAME;isOutput=true]$AKS_NAME"
+                  echo "##vso[task.setvariable variable=ACR_LOGIN_SERVER;isOutput=true]$ACR_SERVER"
+                  echo "##vso[task.setvariable variable=AKS_RESOURCE_GROUP;isOutput=true]$RG_NAME"
+
+# ============================================================
+# STAGE 3: Bootstrap Kubernetes tooling (first-run setup)
+#
+# This stage installs the cluster-level tools via Helm:
+#   - NGINX Ingress Controller (public LoadBalancer → routes to pods)
+#   - cert-manager (automatic TLS certs from Let's Encrypt)
+#   - Prometheus + Grafana monitoring stack
+#   - Loki log aggregation
+#   - ArgoCD (the GitOps CD tool)
+#
+# After this stage, ArgoCD takes over ALL future deployments.
+# You do NOT need to re-run this stage for app code changes —
+# just push code, and ArgoCD will sync automatically.
+# ============================================================
+- stage: BootstrapCluster
+  displayName: 'CD — Bootstrap K8s Tooling & ArgoCD'
+  dependsOn: TerraformApply
+  condition: succeeded()
+  variables:
+    AKS_CLUSTER_NAME:  $[ stageDependencies.TerraformApply.ApplyInfrastructure.outputs['ApplyInfrastructure.tfApply.AKS_CLUSTER_NAME'] ]
+    ACR_LOGIN_SERVER:  $[ stageDependencies.TerraformApply.ApplyInfrastructure.outputs['ApplyInfrastructure.tfApply.ACR_LOGIN_SERVER'] ]
+    AKS_RESOURCE_GROUP: $[ stageDependencies.TerraformApply.ApplyInfrastructure.outputs['ApplyInfrastructure.tfApply.AKS_RESOURCE_GROUP'] ]
+  jobs:
+
+  - deployment: Bootstrap
+    displayName: 'Install cluster tools and register ArgoCD app'
+    environment: 'production'
+    pool:
+      vmImage: 'ubuntu-latest'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+
+            - checkout: self
+
+            # Connect kubectl and helm to the AKS cluster
+            - task: AzureCLI@2
+              displayName: 'Connect kubectl to AKS'
+              inputs:
+                azureSubscription: '$(AZURE_SERVICE_CONNECTION)'
+                scriptType: 'bash'
+                scriptLocation: 'inlineScript'
+                inlineScript: |
+                  az aks get-credentials \
+                    --resource-group $(AKS_RESOURCE_GROUP) \
+                    --name $(AKS_CLUSTER_NAME) \
+                    --overwrite-existing
+                  kubectl cluster-info
+
+            # Install Helm
+            - bash: |
+                curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+                helm version
+              displayName: 'Install Helm'
+
+            # NGINX Ingress Controller
+            # This creates an Azure Load Balancer with a public IP.
+            # All HTTP/HTTPS traffic flows: Internet → LB → NGINX pod → your services
+            - bash: |
+                helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+                helm repo update
+
+                helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
+                  --namespace ingress-nginx \
+                  --create-namespace \
+                  --set controller.replicaCount=2 \
+                  --set controller.service.annotations."service\.beta\.kubernetes\.io/azure-load-balancer-health-probe-request-path"=/healthz \
+                  --wait --timeout 5m
+
+                echo "NGINX Ingress installed. Public IP:"
+                kubectl get svc -n ingress-nginx ingress-nginx-controller
+              displayName: 'Install NGINX Ingress Controller'
+
+            # cert-manager — automatically provisions Let's Encrypt TLS certs
+            # Once installed, creating an Ingress with tls.secretName is enough;
+            # cert-manager handles the ACME challenge and stores the cert.
+            - bash: |
+                helm repo add jetstack https://charts.jetstack.io
+                helm repo update
+
+                helm upgrade --install cert-manager jetstack/cert-manager \
+                  --namespace cert-manager \
+                  --create-namespace \
+                  --set installCRDs=true \
+                  --wait --timeout 5m
+
+                # ClusterIssuer — tells cert-manager to use Let's Encrypt (prod)
+                kubectl apply -f - <<'EOF'
+                apiVersion: cert-manager.io/v1
+                kind: ClusterIssuer
+                metadata:
+                  name: letsencrypt-prod
+                spec:
+                  acme:
+                    server: https://acme-v02.api.letsencrypt.org/directory
+                    email: admin@chikwex.io
+                    privateKeySecretRef:
+                      name: letsencrypt-prod-key
+                    solvers:
+                      - http01:
+                          ingress:
+                            class: nginx
+                EOF
+                echo "cert-manager installed and ClusterIssuer created."
+              displayName: 'Install cert-manager + ClusterIssuer'
+
+            # kube-prometheus-stack — Prometheus + Grafana + Alertmanager
+            - bash: |
+                helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+                helm repo update
+
+                helm upgrade --install kube-prometheus-stack prometheus-community/kube-prometheus-stack \
+                  --namespace monitoring \
+                  --create-namespace \
+                  -f monitoring/prometheus/values.yaml \
+                  --wait --timeout 10m
+
+                echo "Prometheus + Grafana installed."
+                echo "Access Grafana at: https://grafana.chikwex.io"
+              displayName: 'Install Prometheus + Grafana'
+
+            # Loki log aggregation
+            - bash: |
+                helm repo add grafana https://grafana.github.io/helm-charts
+                helm repo update
+
+                helm upgrade --install loki grafana/loki-stack \
+                  --namespace monitoring \
+                  -f monitoring/loki/values.yaml \
+                  --wait --timeout 5m
+
+                echo "Loki installed."
+              displayName: 'Install Loki log aggregation'
+
+            # ArgoCD — installs the GitOps CD tool
+            - bash: |
+                kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
+
+                # Install ArgoCD from the official manifest
+                kubectl apply -n argocd \
+                  -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+
+                # Apply our patches (insecure mode + Ingress)
+                kubectl apply -f argocd/install.yaml
+
+                echo "Waiting for ArgoCD to be ready..."
+                kubectl rollout status deployment/argocd-server -n argocd --timeout=5m
+
+                echo "ArgoCD installed. UI: https://argocd.chikwex.io"
+                echo "Initial admin password:"
+                kubectl -n argocd get secret argocd-initial-admin-secret \
+                  -o jsonpath="{.data.password}" | base64 -d
+                echo ""
+              displayName: 'Install ArgoCD'
+
+            # Register the ZingyCommerce AppProject and Application with ArgoCD
+            - bash: |
+                # Wait for ArgoCD CRDs to be ready
+                kubectl wait --for=condition=Established \
+                  crd/applications.argoproj.io \
+                  crd/appprojects.argoproj.io \
+                  --timeout=60s
+
+                kubectl apply -f argocd/appproject.yaml
+                kubectl apply -f argocd/application.yaml
+
+                echo "ArgoCD Application registered."
+                echo "ArgoCD will now sync the ZingyCommerce Helm chart from Git automatically."
+                echo ""
+                echo "===== Bootstrap Complete! ====="
+                echo "From now on, every commit to main triggers a new image build."
+                echo "ArgoCD detects the updated image.tag in values.yaml and rolls out new pods."
+                echo "No manual kubectl apply needed for app deployments!"
+              displayName: 'Register ArgoCD Application'

@@ -1,0 +1,19 @@
+{{- if .Values.orderService.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: order-service
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "zingycommerce.labels" . | nindent 4 }}
+    app.kubernetes.io/name: order-service
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "zingycommerce.selectorLabels" "order-service" | nindent 4 }}
+  ports:
+    - port: {{ .Values.orderService.port }}
+      targetPort: {{ .Values.orderService.port }}
+      protocol: TCP
+      name: http
+{{- end }}

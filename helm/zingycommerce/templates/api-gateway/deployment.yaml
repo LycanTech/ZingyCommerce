@@ -1,0 +1,50 @@
+{{- if .Values.apiGateway.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-gateway
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "zingycommerce.labels" . | nindent 4 }}
+    app.kubernetes.io/name: api-gateway
+  annotations:
+    app.kubernetes.io/managed-by: ArgoCD
+spec:
+  replicas: {{ .Values.apiGateway.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "zingycommerce.selectorLabels" "api-gateway" | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "zingycommerce.selectorLabels" "api-gateway" | nindent 8 }}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "{{ .Values.apiGateway.port }}"
+        prometheus.io/path: "/health"
+    spec:
+      containers:
+        - name: api-gateway
+          image: {{ include "zingycommerce.image" (dict "root" . "service" "api-gateway") }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.apiGateway.port }}
+          env:
+            - name: PORT
+              value: "{{ .Values.apiGateway.port }}"
+            # The gateway proxies to each downstream service by its K8s DNS name
+            - name: USER_SERVICE_URL
+              value: "http://user-service:{{ .Values.userService.port }}"
+            - name: PRODUCT_SERVICE_URL
+              value: "http://product-service:{{ .Values.productService.port }}"
+            - name: ORDER_SERVICE_URL
+              value: "http://order-service:{{ .Values.orderService.port }}"
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.jwtSecretName }}
+                  key: jwt-secret
+          resources:
+            {{- toYaml .Values.apiGateway.resources | nindent 12 }}
+          {{- include "zingycommerce.probes" (dict "root" . "port" .Values.apiGateway.port) | nindent 10 }}
+{{- end }}

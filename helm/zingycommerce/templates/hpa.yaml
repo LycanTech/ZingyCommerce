@@ -1,0 +1,42 @@
+{{- if .Values.autoscaling.enabled }}
+# HorizontalPodAutoscaler (HPA) — Kubernetes automatically adds/removes pod
+# replicas based on CPU usage. No manual scaling needed!
+#
+# Example: if average CPU across api-gateway pods exceeds 70%,
+# K8s spins up more replicas (up to maxReplicas) to share the load.
+# When traffic drops, it scales back down to minReplicas.
+
+{{- $services := list "api-gateway" "user-service" "product-service" "order-service" "frontend" }}
+{{- range $services }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ . }}-hpa
+  namespace: {{ $.Values.global.namespace }}
+  labels:
+    {{- include "zingycommerce.labels" $ | nindent 4 }}
+    app.kubernetes.io/name: {{ . }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ . }}
+  minReplicas: {{ $.Values.autoscaling.minReplicas }}
+  maxReplicas: {{ $.Values.autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ $.Values.autoscaling.targetCPUUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          # Scale on memory too — useful for Node.js services
+          averageUtilization: 80
+{{- end }}
+{{- end }}

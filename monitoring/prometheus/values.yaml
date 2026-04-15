@@ -1,0 +1,139 @@
+# monitoring/prometheus/values.yaml
+#
+# Helm values for kube-prometheus-stack
+# (installs Prometheus + Grafana + Alertmanager + Node Exporter in one go)
+#
+# Install command:
+#   helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+#   helm repo update
+#   helm upgrade --install kube-prometheus-stack prometheus-community/kube-prometheus-stack \
+#     --namespace monitoring --create-namespace \
+#     -f monitoring/prometheus/values.yaml
+
+# ── Prometheus ──────────────────────────────────────────────────────────────
+prometheus:
+  prometheusSpec:
+    # How long to keep metrics data (15 days = good balance of storage vs history)
+    retention: 15d
+
+    # Persistent storage so metrics survive pod restarts
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 20Gi
+
+    # Pod annotation-based scraping — finds ZingyCommerce pods automatically
+    # because we added prometheus.io/scrape: "true" to each deployment
+    podMonitorSelectorNilUsesHelmValues: false
+    serviceMonitorSelectorNilUsesHelmValues: false
+
+    # Additional scrape configs for ZingyCommerce pods (annotation-based)
+    additionalScrapeConfigs:
+      - job_name: zingycommerce-pods
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names: [ecommerce]
+        # Only scrape pods with prometheus.io/scrape: "true"
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+            action: keep
+            regex: "true"
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+            action: replace
+            target_label: __metrics_path__
+            regex: (.+)
+          - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+            action: replace
+            regex: ([^:]+)(?::\d+)?;(\d+)
+            replacement: $1:$2
+            target_label: __address__
+          - action: labelmap
+            regex: __meta_kubernetes_pod_label_(.+)
+          - source_labels: [__meta_kubernetes_namespace]
+            action: replace
+            target_label: kubernetes_namespace
+          - source_labels: [__meta_kubernetes_pod_name]
+            action: replace
+            target_label: kubernetes_pod_name
+
+# ── Grafana ──────────────────────────────────────────────────────────────────
+grafana:
+  enabled: true
+
+  # Admin credentials — CHANGE THIS in production!
+  # Better: use a Kubernetes secret:
+  #   kubectl create secret generic grafana-admin \
+  #     -n monitoring --from-literal=admin-password=<strong-password>
+  adminPassword: "chikwex-grafana-admin"  # change me!
+
+  # Persistent storage for dashboards and settings
+  persistence:
+    enabled: true
+    size: 5Gi
+
+  # Expose Grafana at https://grafana.chikwex.io via NGINX Ingress
+  ingress:
+    enabled: true
+    ingressClassName: nginx
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+    hosts:
+      - grafana.chikwex.io
+    tls:
+      - secretName: grafana-tls
+        hosts:
+          - grafana.chikwex.io
+
+  # Pre-load our custom ZingyCommerce dashboard automatically
+  dashboardProviders:
+    dashboardproviders.yaml:
+      apiVersion: 1
+      providers:
+        - name: zingycommerce
+          orgId: 1
+          folder: ZingyCommerce
+          type: file
+          disableDeletion: false
+          editable: true
+          options:
+            path: /var/lib/grafana/dashboards/zingycommerce
+
+  dashboardsConfigMaps:
+    zingycommerce: "zingycommerce-dashboard"
+
+  # Pre-configure Prometheus as a data source (so you don't have to do it manually)
+  datasources:
+    datasources.yaml:
+      apiVersion: 1
+      datasources:
+        - name: Prometheus
+          type: prometheus
+          url: http://kube-prometheus-stack-prometheus.monitoring:9090
+          isDefault: true
+          access: proxy
+
+# ── Alertmanager ─────────────────────────────────────────────────────────────
+alertmanager:
+  enabled: true
+  alertmanagerSpec:
+    storage:
+      volumeClaimTemplate:
+        spec:
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 2Gi
+
+# ── Node Exporter ─────────────────────────────────────────────────────────────
+# Collects CPU, memory, disk metrics from each AKS node
+nodeExporter:
+  enabled: true
+
+# ── Kube State Metrics ────────────────────────────────────────────────────────
+# Exposes K8s object state (deployment replicas, pod restarts, etc.) as metrics
+kubeStateMetrics:
+  enabled: true

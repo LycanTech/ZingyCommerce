@@ -1,0 +1,38 @@
+{{- if .Values.productService.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: product-service
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "zingycommerce.labels" . | nindent 4 }}
+    app.kubernetes.io/name: product-service
+  annotations:
+    app.kubernetes.io/managed-by: ArgoCD
+spec:
+  replicas: {{ .Values.productService.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "zingycommerce.selectorLabels" "product-service" | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "zingycommerce.selectorLabels" "product-service" | nindent 8 }}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "{{ .Values.productService.port }}"
+        prometheus.io/path: "/health"
+    spec:
+      containers:
+        - name: product-service
+          image: {{ include "zingycommerce.image" (dict "root" . "service" "product-service") }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.productService.port }}
+          env:
+            - name: PORT
+              value: "{{ .Values.productService.port }}"
+          resources:
+            {{- toYaml .Values.productService.resources | nindent 12 }}
+          {{- include "zingycommerce.probes" (dict "root" . "port" .Values.productService.port) | nindent 10 }}
+{{- end }}

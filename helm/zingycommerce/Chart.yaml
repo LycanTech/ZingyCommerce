@@ -1,0 +1,23 @@
+apiVersion: v2
+name: zingycommerce
+description: |
+  ZingyCommerce — Cloud-native ecommerce microservices platform.
+  Deploys all 5 services (frontend, api-gateway, user, product, order)
+  plus an NGINX Ingress to Azure Kubernetes Service.
+type: application
+version: 1.0.0          # chart version — bump when you change chart templates
+appVersion: "1.0.0"     # application version — overridden per deploy via --set
+
+maintainers:
+  - name: Chikwex Team
+    email: chikwex@zingycommerce.io
+
+keywords:
+  - ecommerce
+  - microservices
+  - azure
+  - kubernetes
+
+home: https://github.com/LycanTech/ZingyCommerce
+
+dependencies: []          # add sub-charts here if needed (e.g. redis, postgresql)

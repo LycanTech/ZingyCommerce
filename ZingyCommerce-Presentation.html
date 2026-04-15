@@ -1,0 +1,2093 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ZingyCommerce — Project Presentation</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <style>
+    /* =====================================================
+       PRINT + SCREEN SHARED STYLES
+    ===================================================== */
+    :root {
+      --brand:   #6c3bff;
+      --brand2:  #a855f7;
+      --accent:  #f0a500;
+      --dark:    #0f0f1a;
+      --card:    #1a1a2e;
+      --muted:   #9d9dbf;
+      --border:  rgba(108,59,255,0.3);
+      --success: #22c55e;
+      --danger:  #ef4444;
+      --info:    #3b82f6;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: #0a0a12;
+      color: #e8e8f5;
+      line-height: 1.6;
+    }
+
+    /* =====================================================
+       SLIDE CONTAINER
+       Each .slide = one A4 page when printed
+    ===================================================== */
+    .slide {
+      width: 297mm;
+      min-height: 210mm;
+      margin: 0 auto 6mm;
+      background: var(--dark);
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      padding: 14mm 18mm;
+      page-break-after: always;
+      break-after: page;
+    }
+
+    /* Subtle grid lines on every slide */
+    .slide::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(108,59,255,0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(108,59,255,0.04) 1px, transparent 1px);
+      background-size: 30px 30px;
+      pointer-events: none;
+    }
+
+    /* Glow blob decorations */
+    .blob {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(70px);
+      pointer-events: none;
+    }
+
+    /* Slide number footer */
+    .slide-num {
+      position: absolute;
+      bottom: 8mm;
+      right: 14mm;
+      font-size: 8pt;
+      color: var(--muted);
+      opacity: 0.6;
+    }
+
+    /* Brand mark on every slide */
+    .slide-brand {
+      position: absolute;
+      bottom: 8mm;
+      left: 14mm;
+      font-size: 8pt;
+      color: var(--muted);
+      opacity: 0.6;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .slide-brand span {
+      font-weight: 700;
+      color: var(--brand2);
+    }
+
+    /* =====================================================
+       TYPOGRAPHY HELPERS
+    ===================================================== */
+    .grad-text {
+      background: linear-gradient(90deg, var(--brand), var(--accent));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .grad-text-2 {
+      background: linear-gradient(90deg, #fff 20%, var(--brand2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .label {
+      font-size: 8pt;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--brand2);
+    }
+
+    /* =====================================================
+       SLIDE 1 — COVER
+    ===================================================== */
+    .cover {
+      justify-content: center;
+      align-items: flex-start;
+      background: radial-gradient(ellipse 80% 60% at 70% 40%, rgba(108,59,255,0.18) 0%, transparent 70%),
+                  var(--dark);
+    }
+
+    .cover-eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      border: 1px solid var(--border);
+      background: rgba(108,59,255,0.1);
+      border-radius: 30px;
+      padding: 5px 16px;
+      font-size: 9pt;
+      font-weight: 600;
+      color: var(--brand2);
+      margin-bottom: 22px;
+      letter-spacing: 0.5px;
+    }
+
+    .cover h1 {
+      font-size: 46pt;
+      font-weight: 900;
+      line-height: 1.0;
+      letter-spacing: -2px;
+      margin-bottom: 18px;
+    }
+
+    .cover-subtitle {
+      font-size: 13pt;
+      color: var(--muted);
+      max-width: 130mm;
+      line-height: 1.7;
+      margin-bottom: 30px;
+    }
+
+    .cover-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 36px;
+    }
+
+    .tag {
+      border: 1px solid var(--border);
+      background: rgba(108,59,255,0.08);
+      border-radius: 6px;
+      padding: 4px 12px;
+      font-size: 8.5pt;
+      font-weight: 600;
+      color: var(--brand2);
+    }
+
+    .cover-meta {
+      display: flex;
+      gap: 40px;
+    }
+
+    .meta-item { display: flex; flex-direction: column; gap: 3px; }
+    .meta-label { font-size: 7.5pt; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+    .meta-value { font-size: 10pt; font-weight: 700; }
+
+    /* Big decorative lightning bolt */
+    .cover-deco {
+      position: absolute;
+      right: 18mm;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 120pt;
+      opacity: 0.07;
+      line-height: 1;
+      filter: blur(1px);
+      pointer-events: none;
+    }
+
+    /* =====================================================
+       SLIDE HEADER (reusable)
+    ===================================================== */
+    .slide-header {
+      margin-bottom: 10mm;
+    }
+
+    .slide-header .label { margin-bottom: 5px; }
+
+    .slide-header h2 {
+      font-size: 22pt;
+      font-weight: 800;
+      line-height: 1.15;
+      letter-spacing: -0.5px;
+    }
+
+    .divider {
+      width: 40px;
+      height: 3px;
+      background: linear-gradient(90deg, var(--brand), var(--brand2));
+      border-radius: 2px;
+      margin-top: 8px;
+    }
+
+    /* =====================================================
+       CARDS
+    ===================================================== */
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px 18px;
+    }
+
+    .card-sm { padding: 10px 14px; border-radius: 10px; }
+
+    /* =====================================================
+       GRID HELPERS
+    ===================================================== */
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+    .grid-4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 10px; }
+
+    /* =====================================================
+       SERVICE CARDS (slide 3)
+    ===================================================== */
+    .svc-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+    }
+
+    .svc-icon {
+      width: 38px;
+      height: 38px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      margin-bottom: 10px;
+    }
+
+    .svc-card h4 { font-size: 10.5pt; font-weight: 700; margin-bottom: 5px; }
+    .svc-card p  { font-size: 8.5pt; color: var(--muted); line-height: 1.5; }
+
+    .svc-port {
+      display: inline-block;
+      margin-top: 8px;
+      background: rgba(108,59,255,0.12);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 2px 8px;
+      font-size: 7.5pt;
+      font-weight: 700;
+      color: var(--brand2);
+      font-family: monospace;
+    }
+
+    .svc-route {
+      display: inline-block;
+      margin-top: 4px;
+      background: rgba(240,165,0,0.1);
+      border: 1px solid rgba(240,165,0,0.3);
+      border-radius: 5px;
+      padding: 2px 8px;
+      font-size: 7.5pt;
+      font-weight: 700;
+      color: var(--accent);
+      font-family: monospace;
+    }
+
+    /* =====================================================
+       ARCHITECTURE DIAGRAM (slide 4)
+    ===================================================== */
+    .arch {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0;
+    }
+
+    .arch-row {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      justify-content: center;
+    }
+
+    .arch-box {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 9px 18px;
+      text-align: center;
+      font-size: 9pt;
+      font-weight: 700;
+      min-width: 52mm;
+    }
+
+    .arch-box.highlight {
+      border-color: var(--brand);
+      background: rgba(108,59,255,0.12);
+      box-shadow: 0 0 20px rgba(108,59,255,0.25);
+    }
+
+    .arch-box .sub { font-size: 7.5pt; color: var(--muted); font-weight: 400; margin-top: 2px; }
+
+    .arch-arrow {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      color: var(--muted);
+      font-size: 16pt;
+      line-height: 1;
+      margin: 3px 0;
+    }
+
+    .arch-arrow-h {
+      color: var(--muted);
+      font-size: 14pt;
+      margin: 0 3px;
+    }
+
+    .arch-services {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+    }
+
+    .arch-db {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      margin-top: 4px;
+    }
+
+    .db-box {
+      background: rgba(34,197,94,0.07);
+      border: 1px solid rgba(34,197,94,0.25);
+      border-radius: 8px;
+      padding: 5px 14px;
+      font-size: 8pt;
+      font-weight: 600;
+      color: var(--success);
+      text-align: center;
+    }
+
+    /* =====================================================
+       AZURE RESOURCES (slide 5)
+    ===================================================== */
+    .azure-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px 16px;
+    }
+
+    .azure-card .az-icon {
+      font-size: 20px;
+      margin-bottom: 6px;
+    }
+
+    .azure-card h4 { font-size: 9.5pt; font-weight: 700; margin-bottom: 4px; }
+    .azure-card p  { font-size: 8pt; color: var(--muted); line-height: 1.5; }
+
+    .az-tag {
+      display: inline-block;
+      margin-top: 6px;
+      background: rgba(59,130,246,0.1);
+      border: 1px solid rgba(59,130,246,0.3);
+      border-radius: 4px;
+      padding: 2px 8px;
+      font-size: 7pt;
+      font-weight: 700;
+      color: var(--info);
+    }
+
+    /* =====================================================
+       TERRAFORM (slide 6)
+    ===================================================== */
+    .tf-file {
+      background: rgba(108,59,255,0.06);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 14px;
+      margin-bottom: 6px;
+    }
+
+    .tf-file .filename {
+      font-family: monospace;
+      font-size: 8.5pt;
+      font-weight: 700;
+      color: var(--accent);
+      margin-bottom: 3px;
+    }
+
+    .tf-file .desc { font-size: 8pt; color: var(--muted); }
+
+    .code-block {
+      background: #0d0d1a;
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 8px;
+      padding: 12px 16px;
+      font-family: monospace;
+      font-size: 8pt;
+      line-height: 1.6;
+      color: #c9d1e0;
+      overflow: hidden;
+    }
+
+    .code-block .c-keyword { color: #a78bfa; }
+    .code-block .c-string  { color: #86efac; }
+    .code-block .c-comment { color: #4a5568; }
+    .code-block .c-var     { color: var(--accent); }
+
+    /* =====================================================
+       CICD PIPELINE (slide 7)
+    ===================================================== */
+    .pipeline {
+      display: flex;
+      align-items: flex-start;
+      gap: 0;
+    }
+
+    .pipe-stage {
+      flex: 1;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px;
+    }
+
+    .pipe-arrow {
+      font-size: 18pt;
+      color: var(--muted);
+      padding: 0 4px;
+      align-self: center;
+      flex-shrink: 0;
+    }
+
+    .pipe-stage h4 {
+      font-size: 9.5pt;
+      font-weight: 800;
+      margin-bottom: 10px;
+      padding-bottom: 7px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .pipe-step {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      margin-bottom: 8px;
+      font-size: 8pt;
+    }
+
+    .pipe-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      margin-top: 4px;
+      flex-shrink: 0;
+    }
+
+    /* =====================================================
+       DOCKER / K8s (slide 8)
+    ===================================================== */
+    .k8s-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 9px 12px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 6px;
+    }
+
+    .k8s-item .ki-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+    .k8s-item .ki-name { font-size: 8.5pt; font-weight: 700; }
+    .k8s-item .ki-desc { font-size: 7.5pt; color: var(--muted); margin-top: 1px; }
+
+    /* =====================================================
+       API TABLE (slide 9)
+    ===================================================== */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 8pt;
+    }
+
+    th {
+      text-align: left;
+      font-size: 7.5pt;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--muted);
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    td {
+      padding: 8px 12px;
+      border-bottom: 1px solid rgba(108,59,255,0.1);
+      vertical-align: middle;
+    }
+
+    tr:last-child td { border-bottom: none; }
+
+    .method {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 7.5pt;
+      font-weight: 700;
+    }
+
+    .method-get    { background: rgba(34,197,94,0.12);  color: #22c55e; }
+    .method-post   { background: rgba(59,130,246,0.12); color: #3b82f6; }
+    .method-put    { background: rgba(234,179,8,0.12);  color: #eab308; }
+    .method-patch  { background: rgba(168,85,247,0.12); color: #a855f7; }
+    .method-delete { background: rgba(239,68,68,0.12);  color: #ef4444; }
+
+    .lock-icon { color: var(--accent); font-size: 9pt; }
+
+    .path { font-family: monospace; font-size: 8pt; }
+
+    /* =====================================================
+       COST SLIDE (slide 10)
+    ===================================================== */
+    .cost-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 16px;
+      border-bottom: 1px solid rgba(108,59,255,0.1);
+    }
+
+    .cost-row:last-child { border-bottom: none; }
+    .cost-name { font-size: 9pt; font-weight: 500; }
+    .cost-sku  { font-size: 7.5pt; color: var(--muted); margin-top: 1px; }
+    .cost-amt  { font-size: 10pt; font-weight: 700; }
+    .cost-total {
+      background: linear-gradient(135deg, rgba(108,59,255,0.15), rgba(168,85,247,0.1));
+      border: 1px solid var(--brand);
+      border-radius: 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 14px 18px;
+      margin-top: 10px;
+    }
+    .cost-total .label { font-size: 10pt; font-weight: 700; }
+    .cost-total .amount {
+      font-size: 18pt;
+      font-weight: 900;
+    }
+
+    .tip-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      padding: 8px 12px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 6px;
+      font-size: 8.5pt;
+    }
+
+    /* =====================================================
+       AGILE SPRINT TIMELINE (slide 11)
+    ===================================================== */
+    .sprint-timeline {
+      display: flex;
+      align-items: flex-start;
+      gap: 0;
+      position: relative;
+      margin: 6px 0 10px;
+    }
+
+    .sprint-timeline::before {
+      content: '';
+      position: absolute;
+      top: 18px;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, var(--brand), var(--brand2), var(--accent));
+    }
+
+    .sprint-col {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0;
+      position: relative;
+    }
+
+    .sprint-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--brand), var(--brand2));
+      border: 2px solid #0f0f1a;
+      z-index: 1;
+      flex-shrink: 0;
+      margin-bottom: 8px;
+    }
+
+    .sprint-dot.done  { background: linear-gradient(135deg,#22c55e,#16a34a); }
+    .sprint-dot.ship  { background: linear-gradient(135deg,var(--accent),#d97706); }
+
+    .sprint-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 10px;
+      width: calc(100% - 8px);
+      font-size: 7.5pt;
+    }
+
+    .sprint-card .s-num {
+      font-size: 7pt;
+      font-weight: 800;
+      color: var(--brand2);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin-bottom: 2px;
+    }
+
+    .sprint-card .s-weeks {
+      font-size: 6.5pt;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+
+    .sprint-card .s-title {
+      font-size: 8pt;
+      font-weight: 700;
+      margin-bottom: 4px;
+      line-height: 1.2;
+    }
+
+    .sprint-card .s-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 4px;
+      font-size: 7pt;
+      color: var(--muted);
+      line-height: 1.4;
+      margin-bottom: 2px;
+    }
+
+    .sprint-card .s-item::before {
+      content: '▸';
+      color: var(--brand2);
+      font-size: 7pt;
+      flex-shrink: 0;
+    }
+
+    /* =====================================================
+       CLOUD DEPLOYMENT CHECKLIST (slide 12)
+    ===================================================== */
+    .deploy-step {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 9px 14px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 6px;
+    }
+
+    .deploy-step .step-num {
+      background: linear-gradient(135deg, var(--brand), var(--brand2));
+      color: white;
+      border-radius: 50%;
+      width: 22px;
+      height: 22px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 7.5pt;
+      font-weight: 800;
+      flex-shrink: 0;
+    }
+
+    .deploy-step .step-body { flex: 1; }
+    .deploy-step .step-title { font-size: 8.5pt; font-weight: 700; margin-bottom: 2px; }
+    .deploy-step .step-cmd {
+      font-family: monospace;
+      font-size: 7.5pt;
+      color: var(--accent);
+      background: rgba(240,165,0,0.07);
+      border-radius: 4px;
+      padding: 2px 6px;
+      display: inline-block;
+      margin-top: 2px;
+    }
+    .deploy-step .step-desc { font-size: 7.5pt; color: var(--muted); margin-top: 2px; }
+
+    .prereq-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: rgba(108,59,255,0.1);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 4px 10px;
+      font-size: 7.5pt;
+      font-weight: 600;
+      color: var(--brand2);
+      margin: 3px 3px 3px 0;
+    }
+
+    /* =====================================================
+       CLOSING SLIDE
+    ===================================================== */
+    .closing {
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      background: radial-gradient(ellipse 100% 80% at 50% 50%, rgba(108,59,255,0.15) 0%, transparent 70%),
+                  var(--dark);
+    }
+
+    .closing h2 {
+      font-size: 30pt;
+      font-weight: 900;
+      letter-spacing: -1px;
+      margin: 20px 0 14px;
+    }
+
+    .closing p {
+      font-size: 11pt;
+      color: var(--muted);
+      max-width: 110mm;
+      margin: 0 auto 24px;
+      line-height: 1.7;
+    }
+
+    .closing-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 10px;
+      margin-top: 20px;
+      text-align: left;
+    }
+
+    .closing-item {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px;
+    }
+
+    .closing-item .ci-icon { font-size: 18px; margin-bottom: 6px; }
+    .closing-item h5 { font-size: 9pt; font-weight: 700; margin-bottom: 4px; }
+    .closing-item p  { font-size: 7.5pt; color: var(--muted); }
+
+    /* =====================================================
+       PRINT RULES
+    ===================================================== */
+    @media print {
+      @page {
+        size: A4 landscape;
+        margin: 0;
+      }
+
+      body { background: var(--dark); }
+
+      .slide {
+        margin: 0;
+        width: 297mm;
+        height: 210mm;
+        min-height: 210mm;
+        page-break-after: always;
+        break-after: page;
+      }
+
+      /* Force background colours to print */
+      * {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }
+    }
+
+    /* Screen preview toolbar */
+    .toolbar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      background: rgba(10,10,18,0.95);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid rgba(108,59,255,0.2);
+      padding: 10px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      z-index: 9999;
+      gap: 12px;
+    }
+
+    .toolbar-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 800;
+      font-size: 0.95rem;
+    }
+
+    .toolbar-brand .dot {
+      width: 10px; height: 10px; border-radius: 50%;
+      background: linear-gradient(135deg, #6c3bff, #a855f7);
+    }
+
+    .toolbar-info { font-size: 0.78rem; color: var(--muted); }
+
+    .btn-print {
+      background: linear-gradient(135deg, #6c3bff, #a855f7);
+      color: white;
+      border: none;
+      padding: 8px 20px;
+      border-radius: 8px;
+      font-weight: 700;
+      cursor: pointer;
+      font-family: 'Inter', sans-serif;
+      font-size: 0.88rem;
+      transition: 0.2s;
+    }
+
+    .btn-print:hover { opacity: 0.88; transform: translateY(-1px); }
+
+    @media print { .toolbar { display: none; } }
+
+    .slides-wrap { padding-top: 56px; }
+    @media print { .slides-wrap { padding-top: 0; } }
+  </style>
+</head>
+<body>
+
+<!-- SCREEN TOOLBAR -->
+<div class="toolbar">
+  <div class="toolbar-brand">
+    <div class="dot"></div>
+    ZingyCommerce — Project Presentation
+  </div>
+  <span class="toolbar-info">13 slides · Open in browser → Print → Save as PDF (A4 Landscape, No margins)</span>
+  <button class="btn-print" onclick="window.print()">🖨 Save as PDF</button>
+</div>
+
+<div class="slides-wrap">
+
+<!-- =====================================================
+     SLIDE 1 — COVER
+===================================================== -->
+<div class="slide cover">
+  <div class="blob" style="width:160mm;height:160mm;background:rgba(108,59,255,0.12);top:-40mm;right:-30mm;"></div>
+  <div class="blob" style="width:100mm;height:100mm;background:rgba(168,85,247,0.08);bottom:-20mm;left:30mm;"></div>
+
+  <div class="cover-eyebrow">⚡ Cloud-Native Ecommerce · Azure · DevOps</div>
+
+  <h1>
+    <span class="grad-text-2">Zingy</span><br>
+    <span class="grad-text">Commerce</span>
+  </h1>
+
+  <p class="cover-subtitle">
+    A production-ready, cloud-native ecommerce platform built with
+    microservices architecture, containerised with Docker, orchestrated
+    on Azure Kubernetes Service, and deployed via a full CI/CD pipeline.
+  </p>
+
+  <div class="cover-tags">
+    <span class="tag">Node.js</span>
+    <span class="tag">Docker</span>
+    <span class="tag">Kubernetes (AKS)</span>
+    <span class="tag">Terraform</span>
+    <span class="tag">Azure DevOps</span>
+    <span class="tag">Microservices</span>
+    <span class="tag">API Gateway</span>
+    <span class="tag">JWT Auth</span>
+  </div>
+
+  <div class="cover-meta">
+    <div class="meta-item">
+      <span class="meta-label">Services</span>
+      <span class="meta-value">5 Microservices</span>
+    </div>
+    <div class="meta-item">
+      <span class="meta-label">Cloud</span>
+      <span class="meta-value">Microsoft Azure</span>
+    </div>
+    <div class="meta-item">
+      <span class="meta-label">IaC Tool</span>
+      <span class="meta-value">Terraform</span>
+    </div>
+    <div class="meta-item">
+      <span class="meta-label">Pipeline</span>
+      <span class="meta-value">Azure DevOps CI/CD</span>
+    </div>
+  </div>
+
+  <div class="cover-deco">⚡</div>
+  <div class="slide-num">1 / 11</div>
+  <div class="slide-brand"><span>ZingyCommerce</span></div>
+</div>
+
+<!-- =====================================================
+     SLIDE 2 — WHAT WE BUILT
+===================================================== -->
+<div class="slide">
+  <div class="blob" style="width:120mm;height:120mm;background:rgba(108,59,255,0.08);top:-30mm;right:-20mm;"></div>
+
+  <div class="slide-header">
+    <div class="label">Overview</div>
+    <h2 class="grad-text-2">What Is ZingyCommerce?</h2>
+    <div class="divider"></div>
+  </div>
+
+  <div class="grid-2" style="gap:14px; flex:1;">
+    <!-- Left: description -->
+    <div style="display:flex;flex-direction:column;gap:12px;">
+      <div class="card" style="flex:1;">
+        <p style="font-size:10pt;line-height:1.75;color:#d0d0ea;">
+          ZingyCommerce is a fully functional online shop split into
+          <strong style="color:#fff;">5 independent microservices</strong>, each responsible
+          for one area of the business. The services communicate through a
+          central <strong style="color:#fff;">API Gateway</strong> that also handles
+          authentication, routing, and logging.
+        </p>
+        <p style="font-size:10pt;line-height:1.75;color:#d0d0ea;margin-top:12px;">
+          The entire platform is packaged in <strong style="color:#fff;">Docker containers</strong>
+          and deployed to <strong style="color:#fff;">Azure Kubernetes Service (AKS)</strong>
+          using a fully automated pipeline — push code, approve the deployment,
+          and the new version is live.
+        </p>
+      </div>
+
+      <!-- 3 pillars -->
+      <div class="grid-3" style="gap:8px;">
+        <div class="card card-sm" style="text-align:center;">
+          <div style="font-size:22px;margin-bottom:6px;">🛒</div>
+          <div style="font-size:8.5pt;font-weight:700;">Full Shopping</div>
+          <div style="font-size:7.5pt;color:var(--muted);margin-top:3px;">Browse, cart, checkout</div>
+        </div>
+        <div class="card card-sm" style="text-align:center;">
+          <div style="font-size:22px;margin-bottom:6px;">🔐</div>
+          <div style="font-size:8.5pt;font-weight:700;">JWT Auth</div>
+          <div style="font-size:7.5pt;color:var(--muted);margin-top:3px;">Secure token login</div>
+        </div>
+        <div class="card card-sm" style="text-align:center;">
+          <div style="font-size:22px;margin-bottom:6px;">📦</div>
+          <div style="font-size:8.5pt;font-weight:700;">Order Tracking</div>
+          <div style="font-size:7.5pt;color:var(--muted);margin-top:3px;">Status updates per order</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: features list -->
+    <div class="card" style="display:flex;flex-direction:column;gap:10px;">
+      <div style="font-size:9pt;font-weight:700;color:var(--brand2);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">Key Features</div>
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <div style="display:flex;align-items:center;gap:10px;font-size:9pt;">
+          <span style="color:var(--success);font-size:11pt;">✓</span>
+          <span>Product catalogue with search &amp; category filter</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;font-size:9pt;">
+          <span style="color:var(--success);font-size:11pt;">✓</span>
+          <span>User registration, login &amp; JWT token authentication</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;font-size:9pt;">
+          <span style="color:var(--success);font-size:11pt;">✓</span>
+          <span>Shopping cart with persistent localStorage state</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;font-size:9pt;">
+          <span style="color:var(--success);font-size:11pt;">✓</span>
+          <span>Order placement with real-time stock reservation</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;font-size:9pt;">
+          <span style="color:var(--success);font-size:11pt;">✓</span>
+          <span>Order history with status tracking per order</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;font-size:9pt;">
+          <span style="color:var(--success);font-size:11pt;">✓</span>
+          <span>Single-page frontend served by nginx (Docker)</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;font-size:9pt;">
+          <span style="color:var(--success);font-size:11pt;">✓</span>
+          <span>Health check endpoints on every service</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;font-size:9pt;">
+          <span style="color:var(--success);font-size:11pt;">✓</span>
+          <span>Auto-scaling (HPA) based on CPU usage</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;font-size:9pt;">
+          <span style="color:var(--success);font-size:11pt;">✓</span>
+          <span>Infrastructure as Code with Terraform (AKS, ACR)</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;font-size:9pt;">
+          <span style="color:var(--success);font-size:11pt;">✓</span>
+          <span>Full CI/CD pipeline via Azure DevOps YAML</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="slide-num">2 / 11</div>
+  <div class="slide-brand"><span>ZingyCommerce</span></div>
+</div>
+
+<!-- =====================================================
+     SLIDE 3 — MICROSERVICES
+===================================================== -->
+<div class="slide">
+  <div class="blob" style="width:100mm;height:100mm;background:rgba(168,85,247,0.08);bottom:-20mm;left:-10mm;"></div>
+
+  <div class="slide-header">
+    <div class="label">Architecture</div>
+    <h2 class="grad-text-2">The 5 Microservices</h2>
+    <div class="divider"></div>
+  </div>
+
+  <div class="grid-3" style="gap:12px; flex:1;">
+
+    <div class="svc-card">
+      <div class="svc-icon" style="background:rgba(59,130,246,0.15);">🌐</div>
+      <h4>Frontend</h4>
+      <p>Single-page app built with vanilla HTML/CSS/JS and served by nginx. Handles the full shopping journey — browse, cart, checkout, orders — without any framework dependency.</p>
+      <div><span class="svc-port">Port 80</span></div>
+      <div><span class="svc-route">nginx</span></div>
+    </div>
+
+    <div class="svc-card" style="border-color:var(--brand);">
+      <div class="svc-icon" style="background:rgba(108,59,255,0.15);">🔀</div>
+      <h4>API Gateway</h4>
+      <p>The single public entry point for all requests. Routes traffic to the correct microservice, validates JWT tokens on protected routes, and logs every request using morgan.</p>
+      <div><span class="svc-port">Port 3000</span></div>
+      <div><span class="svc-route">http-proxy-middleware</span></div>
+    </div>
+
+    <div class="svc-card">
+      <div class="svc-icon" style="background:rgba(34,197,94,0.12);">👤</div>
+      <h4>User Service</h4>
+      <p>Handles account registration, login, and profile retrieval. Passwords are hashed with bcrypt. Successful login returns a signed JWT token valid for 24 hours.</p>
+      <div><span class="svc-port">Port 3001</span></div>
+      <div><span class="svc-route">/users/*</span></div>
+    </div>
+
+    <div class="svc-card">
+      <div class="svc-icon" style="background:rgba(240,165,0,0.12);">📦</div>
+      <h4>Product Service</h4>
+      <p>Full CRUD product catalogue with search and category filtering. Pre-seeds 5 products on first boot. Exposes a stock-reduction endpoint used by the Order Service.</p>
+      <div><span class="svc-port">Port 3002</span></div>
+      <div><span class="svc-route">/products/*</span></div>
+    </div>
+
+    <div class="svc-card">
+      <div class="svc-icon" style="background:rgba(239,68,68,0.12);">🧾</div>
+      <h4>Order Service</h4>
+      <p>Places orders and tracks their status lifecycle (pending → confirmed → shipped → delivered). Calls the Product Service to atomically reserve stock before confirming any order.</p>
+      <div><span class="svc-port">Port 3003</span></div>
+      <div><span class="svc-route">/orders/* 🔐</span></div>
+    </div>
+
+    <!-- Summary card -->
+    <div class="card" style="display:flex;flex-direction:column;justify-content:center;gap:10px;padding:16px;">
+      <div style="font-size:8.5pt;font-weight:700;color:var(--brand2);text-transform:uppercase;letter-spacing:1px;">Design Principles</div>
+      <div style="font-size:8.5pt;display:flex;align-items:flex-start;gap:7px;"><span style="color:var(--brand2);">▸</span><span>Each service owns its own SQLite database — no shared data stores</span></div>
+      <div style="font-size:8.5pt;display:flex;align-items:flex-start;gap:7px;"><span style="color:var(--brand2);">▸</span><span>Services communicate only via HTTP — loosely coupled</span></div>
+      <div style="font-size:8.5pt;display:flex;align-items:flex-start;gap:7px;"><span style="color:var(--brand2);">▸</span><span>All inter-service URLs are environment variables — swappable</span></div>
+      <div style="font-size:8.5pt;display:flex;align-items:flex-start;gap:7px;"><span style="color:var(--brand2);">▸</span><span>Every service exposes a <code style="color:var(--accent);">/health</code> endpoint for Kubernetes liveness probes</span></div>
+      <div style="font-size:8.5pt;display:flex;align-items:flex-start;gap:7px;"><span style="color:var(--brand2);">▸</span><span>Orders protected by JWT — gateway rejects unauthenticated requests</span></div>
+    </div>
+
+  </div>
+
+  <div class="slide-num">3 / 11</div>
+  <div class="slide-brand"><span>ZingyCommerce</span></div>
+</div>
+
+<!-- =====================================================
+     SLIDE 4 — ARCHITECTURE DIAGRAM
+===================================================== -->
+<div class="slide">
+  <div class="slide-header">
+    <div class="label">System Design</div>
+    <h2 class="grad-text-2">Architecture Diagram</h2>
+    <div class="divider"></div>
+  </div>
+
+  <div style="flex:1;display:flex;flex-direction:column;justify-content:center;">
+
+    <!-- User layer -->
+    <div class="arch" style="gap:4px;">
+      <!-- Internet -->
+      <div class="arch-row">
+        <div class="arch-box" style="background:rgba(240,165,0,0.08);border-color:rgba(240,165,0,0.3);min-width:36mm;">
+          <div>🌍 Internet</div>
+          <div class="sub">User's Browser</div>
+        </div>
+      </div>
+
+      <div class="arch-arrow">↓</div>
+
+      <!-- Frontend + Gateway side by side -->
+      <div class="arch-row" style="gap:12px;">
+        <div class="arch-box">
+          <div>🖥 Frontend</div>
+          <div class="sub">nginx · Port 80</div>
+        </div>
+        <div style="font-size:11pt;color:var(--muted);align-self:center;padding:0 4px;">API calls</div>
+        <div class="arch-box highlight">
+          <div>🔀 API Gateway</div>
+          <div class="sub">Express · Port 3000</div>
+        </div>
+      </div>
+
+      <div class="arch-arrow">↓ routes to</div>
+
+      <!-- 3 services -->
+      <div class="arch-services" style="gap:10px;">
+        <div class="arch-box">
+          <div>👤 User Service</div>
+          <div class="sub">Port 3001</div>
+        </div>
+        <div class="arch-box">
+          <div>📦 Product Service</div>
+          <div class="sub">Port 3002</div>
+        </div>
+        <div class="arch-box">
+          <div>🧾 Order Service</div>
+          <div class="sub">Port 3003 · JWT</div>
+        </div>
+      </div>
+
+      <!-- Arrow down to DBs -->
+      <div class="arch-row" style="gap:50px;">
+        <div class="arch-arrow" style="margin:0;">↓</div>
+        <div class="arch-arrow" style="margin:0;">↓</div>
+        <div class="arch-arrow" style="margin:0;">↓</div>
+      </div>
+
+      <!-- Databases -->
+      <div class="arch-db" style="gap:10px;">
+        <div class="db-box">💾 users.db</div>
+        <div class="db-box">💾 products.db</div>
+        <div class="db-box">💾 orders.db</div>
+      </div>
+    </div>
+
+    <!-- Side note about K8s -->
+    <div style="display:flex;gap:10px;margin-top:14px;">
+      <div class="card" style="flex:1;font-size:8pt;line-height:1.6;color:var(--muted);">
+        <strong style="color:#fff;display:block;margin-bottom:4px;">🔑 Authentication Flow</strong>
+        Browser → <span style="color:var(--accent);">POST /users/login</span> → User Service returns JWT →
+        Browser stores token → Sends <span style="color:var(--accent);">Authorization: Bearer &lt;token&gt;</span> on every order request →
+        Gateway validates JWT before forwarding to Order Service.
+      </div>
+      <div class="card" style="flex:1;font-size:8pt;line-height:1.6;color:var(--muted);">
+        <strong style="color:#fff;display:block;margin-bottom:4px;">☸ In Kubernetes (AKS)</strong>
+        Each service runs as a <em>Deployment</em> (2 replicas). An internal ClusterIP <em>Service</em> gives each deployment a stable DNS name — e.g. <span style="color:var(--accent);">http://product-service:3002</span>.
+        Only the API Gateway and Frontend get a public <em>LoadBalancer</em> IP.
+      </div>
+      <div class="card" style="flex:1;font-size:8pt;line-height:1.6;color:var(--muted);">
+        <strong style="color:#fff;display:block;margin-bottom:4px;">📡 Service-to-Service Call</strong>
+        When a user places an order, the Order Service calls
+        <span style="color:var(--accent);">PATCH /products/:id/stock</span> on the Product Service
+        to atomically reduce stock before confirming the order. If stock is insufficient, a 409 is returned.
+      </div>
+    </div>
+  </div>
+
+  <div class="slide-num">4 / 11</div>
+  <div class="slide-brand"><span>ZingyCommerce</span></div>
+</div>
+
+<!-- =====================================================
+     SLIDE 5 — AZURE RESOURCES
+===================================================== -->
+<div class="slide">
+  <div class="blob" style="width:120mm;height:120mm;background:rgba(59,130,246,0.07);top:-20mm;right:-10mm;"></div>
+
+  <div class="slide-header">
+    <div class="label">Cloud Infrastructure</div>
+    <h2 class="grad-text-2">Azure Resources</h2>
+    <div class="divider"></div>
+  </div>
+
+  <div class="grid-3" style="gap:12px;">
+
+    <div class="azure-card">
+      <div class="az-icon">🗂</div>
+      <h4>Resource Group</h4>
+      <p>A logical container that groups all related Azure resources together. Makes it easy to manage, monitor, and delete the entire project as one unit.</p>
+      <div><span class="az-tag">zingy-ecommerce-dev-rg</span></div>
+    </div>
+
+    <div class="azure-card">
+      <div class="az-icon">🐳</div>
+      <h4>Azure Container Registry</h4>
+      <p>A private Docker image registry. All 5 service images are built and pushed here during CI. AKS pulls images from ACR using a managed identity — no passwords needed.</p>
+      <div><span class="az-tag">ACR Basic SKU</span></div>
+    </div>
+
+    <div class="azure-card" style="border-color:var(--brand);">
+      <div class="az-icon">☸</div>
+      <h4>Azure Kubernetes Service</h4>
+      <p>Fully managed Kubernetes cluster. Azure handles the control plane (API server, etcd, scheduler). We manage the node pool — 2× Standard_B2s VMs with auto-scaling enabled.</p>
+      <div><span class="az-tag">AKS · 2 nodes · auto-scale</span></div>
+    </div>
+
+    <div class="azure-card">
+      <div class="az-icon">📊</div>
+      <h4>Log Analytics Workspace</h4>
+      <p>Collects container logs and Kubernetes control-plane events. Used to query logs, set alerts, and build monitoring dashboards in Azure Monitor.</p>
+      <div><span class="az-tag">PerGB2018 · 30-day retention</span></div>
+    </div>
+
+    <div class="azure-card">
+      <div class="az-icon">🔑</div>
+      <h4>Role Assignment (AcrPull)</h4>
+      <p>Grants the AKS kubelet identity the built-in <em>AcrPull</em> role on the Container Registry. This allows Kubernetes nodes to pull Docker images without a username or password.</p>
+      <div><span class="az-tag">Managed Identity · RBAC</span></div>
+    </div>
+
+    <div class="azure-card">
+      <div class="az-icon">💾</div>
+      <h4>Azure Blob Storage</h4>
+      <p>Stores the Terraform state file remotely so the whole team shares the same infrastructure state. Prevents two people accidentally creating duplicate resources.</p>
+      <div><span class="az-tag">Standard_LRS · tfstate container</span></div>
+    </div>
+
+  </div>
+
+  <!-- Kubernetes objects inside AKS -->
+  <div style="margin-top:12px;">
+    <div style="font-size:8pt;font-weight:700;color:var(--brand2);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Kubernetes Objects Deployed Inside AKS</div>
+    <div class="grid-4" style="gap:8px;">
+      <div class="card card-sm" style="font-size:8pt;text-align:center;">
+        <div>📁 <strong>Namespace</strong></div>
+        <div style="color:var(--muted);margin-top:3px;">ecommerce</div>
+      </div>
+      <div class="card card-sm" style="font-size:8pt;text-align:center;">
+        <div>🚀 <strong>Deployments</strong></div>
+        <div style="color:var(--muted);margin-top:3px;">5 × 2 replicas</div>
+      </div>
+      <div class="card card-sm" style="font-size:8pt;text-align:center;">
+        <div>🔌 <strong>Services</strong></div>
+        <div style="color:var(--muted);margin-top:3px;">ClusterIP + LoadBalancer</div>
+      </div>
+      <div class="card card-sm" style="font-size:8pt;text-align:center;">
+        <div>📈 <strong>HPA</strong></div>
+        <div style="color:var(--muted);margin-top:3px;">Auto-scale on CPU 70%</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="slide-num">5 / 11</div>
+  <div class="slide-brand"><span>ZingyCommerce</span></div>
+</div>
+
+<!-- =====================================================
+     SLIDE 6 — TERRAFORM
+===================================================== -->
+<div class="slide">
+  <div class="blob" style="width:110mm;height:110mm;background:rgba(108,59,255,0.09);bottom:-20mm;right:-10mm;"></div>
+
+  <div class="slide-header">
+    <div class="label">Infrastructure as Code</div>
+    <h2 class="grad-text-2">Terraform</h2>
+    <div class="divider"></div>
+  </div>
+
+  <div class="grid-2" style="gap:14px;flex:1;">
+
+    <!-- Left: file breakdown -->
+    <div>
+      <div style="font-size:8.5pt;font-weight:700;color:var(--brand2);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;">File Structure</div>
+
+      <div class="tf-file">
+        <div class="filename">📄 main.tf</div>
+        <div class="desc">Azure provider config, resource group, and remote state backend pointing to Azure Blob Storage.</div>
+      </div>
+      <div class="tf-file">
+        <div class="filename">📄 variables.tf</div>
+        <div class="desc">All inputs: location, environment (dev/staging/prod), prefix, node count, VM size, ACR SKU.</div>
+      </div>
+      <div class="tf-file">
+        <div class="filename">📄 acr.tf</div>
+        <div class="desc">Container Registry resource + AcrPull role assignment so AKS can pull images without credentials.</div>
+      </div>
+      <div class="tf-file">
+        <div class="filename">📄 aks.tf</div>
+        <div class="desc">AKS cluster with system-assigned identity, auto-scaling node pool, Azure Monitor integration.</div>
+      </div>
+      <div class="tf-file">
+        <div class="filename">📄 monitoring.tf</div>
+        <div class="desc">Log Analytics workspace + AKS diagnostic settings forwarding control-plane logs.</div>
+      </div>
+      <div class="tf-file">
+        <div class="filename">📄 outputs.tf</div>
+        <div class="desc">Prints ACR login server, AKS cluster name, and a ready-to-paste <code>az aks get-credentials</code> command.</div>
+      </div>
+    </div>
+
+    <!-- Right: workflow + code -->
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <div style="font-size:8.5pt;font-weight:700;color:var(--brand2);text-transform:uppercase;letter-spacing:1px;">Deployment Workflow</div>
+
+      <!-- Step pills -->
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--card);border:1px solid var(--border);border-radius:8px;font-size:8.5pt;">
+          <span style="background:linear-gradient(135deg,var(--brand),var(--brand2));color:white;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:7pt;font-weight:800;flex-shrink:0;">1</span>
+          <div><strong>terraform init</strong> — downloads Azure provider plugin, connects to remote state backend</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--card);border:1px solid var(--border);border-radius:8px;font-size:8.5pt;">
+          <span style="background:linear-gradient(135deg,var(--brand),var(--brand2));color:white;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:7pt;font-weight:800;flex-shrink:0;">2</span>
+          <div><strong>terraform plan -out=tfplan</strong> — previews exactly what will be created/changed, saves plan</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--card);border:1px solid var(--border);border-radius:8px;font-size:8.5pt;">
+          <span style="background:linear-gradient(135deg,var(--brand),var(--brand2));color:white;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:7pt;font-weight:800;flex-shrink:0;">3</span>
+          <div><strong>terraform apply tfplan</strong> — creates/updates real Azure resources from the saved plan</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--card);border:1px solid var(--border);border-radius:8px;font-size:8.5pt;">
+          <span style="background:linear-gradient(135deg,var(--brand),var(--brand2));color:white;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:7pt;font-weight:800;flex-shrink:0;">4</span>
+          <div><strong>terraform output</strong> — prints ACR URL and AKS cluster name for use in next steps</div>
+        </div>
+      </div>
+
+      <!-- Code snippet -->
+      <div class="code-block">
+<span class="c-comment"># acr.tf — Container Registry + AKS pull permission</span>
+<span class="c-keyword">resource</span> <span class="c-string">"azurerm_container_registry"</span> <span class="c-string">"main"</span> {
+  name = <span class="c-string">"${var.prefix}commerceacr${var.environment}"</span>
+  sku  = <span class="c-var">var.acr_sku</span>
+}
+
+<span class="c-keyword">resource</span> <span class="c-string">"azurerm_role_assignment"</span> <span class="c-string">"aks_acr_pull"</span> {
+  scope                = azurerm_container_registry.main.id
+  role_definition_name = <span class="c-string">"AcrPull"</span>
+  principal_id         = azurerm_kubernetes_cluster
+                           .main.kubelet_identity[0].object_id
+}
+      </div>
+
+      <div style="font-size:7.5pt;color:var(--muted);font-style:italic;padding:6px 10px;border-left:2px solid var(--brand);background:rgba(108,59,255,0.05);border-radius:0 6px 6px 0;">
+        💡 The state file in Azure Blob Storage means the whole team shares the same infrastructure view. Terraform will never create a duplicate resource if it already exists.
+      </div>
+    </div>
+
+  </div>
+
+  <div class="slide-num">6 / 11</div>
+  <div class="slide-brand"><span>ZingyCommerce</span></div>
+</div>
+
+<!-- =====================================================
+     SLIDE 7 — CI/CD PIPELINE
+===================================================== -->
+<div class="slide">
+  <div class="blob" style="width:100mm;height:100mm;background:rgba(168,85,247,0.08);top:-15mm;right:-10mm;"></div>
+
+  <div class="slide-header">
+    <div class="label">DevOps</div>
+    <h2 class="grad-text-2">CI/CD Pipeline — Azure DevOps</h2>
+    <div class="divider"></div>
+  </div>
+
+  <!-- Trigger banner -->
+  <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:rgba(108,59,255,0.08);border:1px solid var(--border);border-radius:8px;margin-bottom:14px;font-size:8.5pt;">
+    <span style="font-size:16px;">🚀</span>
+    <span><strong>Trigger:</strong> Every push to the <code style="color:var(--accent);">main</code> branch automatically starts the pipeline. Markdown-only changes are excluded.</span>
+  </div>
+
+  <!-- Pipeline stages -->
+  <div class="pipeline" style="flex:1;align-items:stretch;">
+
+    <!-- Stage 1: CI -->
+    <div class="pipe-stage">
+      <h4 style="color:var(--info);">① CI — Validate &amp; Build</h4>
+      <div style="font-size:7.5pt;color:var(--muted);margin-bottom:10px;">Runs in parallel: two jobs at the same time</div>
+
+      <div style="font-size:8pt;font-weight:700;margin-bottom:6px;color:var(--brand2);">Job A: Terraform Validation</div>
+      <div class="pipe-step"><div class="pipe-dot" style="background:var(--info);"></div><div><strong>terraform init</strong> — connects to remote state backend</div></div>
+      <div class="pipe-step"><div class="pipe-dot" style="background:var(--info);"></div><div><strong>terraform fmt -check</strong> — enforces consistent code style</div></div>
+      <div class="pipe-step"><div class="pipe-dot" style="background:var(--info);"></div><div><strong>terraform validate</strong> — checks syntax correctness</div></div>
+      <div class="pipe-step"><div class="pipe-dot" style="background:var(--info);"></div><div><strong>terraform plan -out=tfplan</strong> — previews changes, saves plan as pipeline artifact</div></div>
+
+      <div style="font-size:8pt;font-weight:700;margin:10px 0 6px;color:var(--brand2);">Job B: Docker Build &amp; Push</div>
+      <div class="pipe-step"><div class="pipe-dot" style="background:var(--info);"></div><div>Login to Azure Container Registry</div></div>
+      <div class="pipe-step"><div class="pipe-dot" style="background:var(--info);"></div><div>Build &amp; push 5 images — tagged with Build ID <em>and</em> latest</div></div>
+      <div class="pipe-step"><div class="pipe-dot" style="background:var(--info);"></div><div>Each image: user · product · order · api-gateway · frontend</div></div>
+    </div>
+
+    <div class="pipe-arrow">→</div>
+
+    <!-- Stage 2: Terraform Apply -->
+    <div class="pipe-stage">
+      <h4 style="color:var(--accent);">② CD — Terraform Apply</h4>
+      <div style="font-size:7.5pt;color:var(--muted);margin-bottom:10px;">⏸ Manual approval gate required</div>
+
+      <div class="pipe-step"><div class="pipe-dot" style="background:var(--accent);"></div><div>Team member clicks <strong>Approve</strong> in Azure DevOps Environments</div></div>
+      <div class="pipe-step"><div class="pipe-dot" style="background:var(--accent);"></div><div><strong>terraform init</strong> — fresh agent re-initialises</div></div>
+      <div class="pipe-step"><div class="pipe-dot" style="background:var(--accent);"></div><div>Download saved plan artifact from Stage 1</div></div>
+      <div class="pipe-step"><div class="pipe-dot" style="background:var(--accent);"></div><div><strong>terraform apply tfplan</strong> — creates/updates ACR, AKS, Log Analytics</div></div>
+      <div class="pipe-step"><div class="pipe-dot" style="background:var(--accent);"></div><div>Read <code>terraform output</code> and export AKS name &amp; ACR URL to Stage 3</div></div>
+    </div>
+
+    <div class="pipe-arrow">→</div>
+
+    <!-- Stage 3: Deploy K8s -->
+    <div class="pipe-stage">
+      <h4 style="color:var(--success);">③ CD — Deploy to AKS</h4>
+      <div style="font-size:7.5pt;color:var(--muted);margin-bottom:10px;">Runs after Terraform apply succeeds</div>
+
+      <div class="pipe-step"><div class="pipe-dot" style="background:var(--success);"></div><div><strong>az aks get-credentials</strong> — connects kubectl to the cluster</div></div>
+      <div class="pipe-step"><div class="pipe-dot" style="background:var(--success);"></div><div>Replace <code>&lt;ACR_NAME&gt;</code> placeholder in k8s manifests with real ACR URL</div></div>
+      <div class="pipe-step"><div class="pipe-dot" style="background:var(--success);"></div><div>Pin all images to this Build ID (no floating <em>latest</em> in production)</div></div>
+      <div class="pipe-step"><div class="pipe-dot" style="background:var(--success);"></div><div><strong>kubectl apply -f k8s/</strong> — deploys all 5 services + HPA</div></div>
+      <div class="pipe-step"><div class="pipe-dot" style="background:var(--success);"></div><div><strong>kubectl rollout status</strong> — waits for each deployment (5 min timeout)</div></div>
+      <div class="pipe-step"><div class="pipe-dot" style="background:var(--success);"></div><div>Print public IPs for API Gateway and Frontend</div></div>
+    </div>
+
+  </div>
+
+  <div style="margin-top:10px;font-size:7.5pt;color:var(--muted);padding:7px 12px;background:rgba(34,197,94,0.05);border:1px solid rgba(34,197,94,0.2);border-radius:6px;">
+    ✅ &nbsp; After Stage 3 completes, every pod is running the new image. Zero-downtime because Kubernetes does a rolling update — replicas are replaced one at a time.
+  </div>
+
+  <div class="slide-num">7 / 11</div>
+  <div class="slide-brand"><span>ZingyCommerce</span></div>
+</div>
+
+<!-- =====================================================
+     SLIDE 8 — DOCKER & KUBERNETES
+===================================================== -->
+<div class="slide">
+  <div class="blob" style="width:100mm;height:100mm;background:rgba(59,130,246,0.07);bottom:-20mm;left:-10mm;"></div>
+
+  <div class="slide-header">
+    <div class="label">Containers &amp; Orchestration</div>
+    <h2 class="grad-text-2">Docker &amp; Kubernetes</h2>
+    <div class="divider"></div>
+  </div>
+
+  <div class="grid-2" style="gap:14px;flex:1;">
+
+    <!-- Docker column -->
+    <div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+        <span style="font-size:18px;">🐳</span>
+        <span style="font-size:9.5pt;font-weight:800;">Docker — Packaging</span>
+      </div>
+
+      <div class="code-block" style="margin-bottom:10px;font-size:7.5pt;">
+<span class="c-comment"># Multi-stage Dockerfile (user-service)</span>
+<span class="c-keyword">FROM</span> node:20-alpine <span class="c-keyword">AS</span> builder
+WORKDIR /app
+<span class="c-keyword">COPY</span> package*.json ./
+<span class="c-keyword">RUN</span> npm install --omit=dev
+
+<span class="c-keyword">FROM</span> node:20-alpine      <span class="c-comment"># final image</span>
+WORKDIR /app
+<span class="c-keyword">COPY</span> --from=builder /app/node_modules .
+<span class="c-keyword">COPY</span> . .
+<span class="c-keyword">EXPOSE</span> 3001
+<span class="c-keyword">CMD</span> [<span class="c-string">"node"</span>, <span class="c-string">"src/index.js"</span>]
+      </div>
+
+      <div class="k8s-item">
+        <div class="ki-icon">📋</div>
+        <div>
+          <div class="ki-name">docker compose up --build</div>
+          <div class="ki-desc">Runs ALL 5 services locally with one command. Uses an internal bridge network so services reach each other by name.</div>
+        </div>
+      </div>
+      <div class="k8s-item">
+        <div class="ki-icon">🔒</div>
+        <div>
+          <div class="ki-name">Multi-stage build</div>
+          <div class="ki-desc">Stage 1 compiles dependencies. Stage 2 copies only what's needed to run. Final image is smaller and more secure.</div>
+        </div>
+      </div>
+      <div class="k8s-item">
+        <div class="ki-icon">🌐</div>
+        <div>
+          <div class="ki-name">Frontend: nginx Alpine</div>
+          <div class="ki-desc">Static HTML/CSS/JS served by nginx. No Node.js at runtime — very lightweight container.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Kubernetes column -->
+    <div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+        <span style="font-size:18px;">☸</span>
+        <span style="font-size:9.5pt;font-weight:800;">Kubernetes — Orchestration</span>
+      </div>
+
+      <div class="k8s-item">
+        <div class="ki-icon">📁</div>
+        <div>
+          <div class="ki-name">Namespace: zcommerce</div>
+          <div class="ki-desc">All resources live in the same namespace, isolated from other apps running in the cluster.</div>
+        </div>
+      </div>
+      <div class="k8s-item">
+        <div class="ki-icon">🚀</div>
+        <div>
+          <div class="ki-name">Deployments × 2 replicas each</div>
+          <div class="ki-desc">Each service runs 2 pods. If one crashes, the other serves traffic while Kubernetes restarts the failed pod.</div>
+        </div>
+      </div>
+      <div class="k8s-item">
+        <div class="ki-icon">🔌</div>
+        <div>
+          <div class="ki-name">Services (ClusterIP + LoadBalancer)</div>
+          <div class="ki-desc">Internal services use ClusterIP (private). API Gateway and Frontend use LoadBalancer to get a public Azure IP.</div>
+        </div>
+      </div>
+      <div class="k8s-item">
+        <div class="ki-icon">💓</div>
+        <div>
+          <div class="ki-name">Liveness &amp; Readiness Probes</div>
+          <div class="ki-desc">Kubernetes polls <code style="color:var(--accent);">/health</code> every 30s. If unhealthy, the pod is restarted automatically.</div>
+        </div>
+      </div>
+      <div class="k8s-item">
+        <div class="ki-icon">📈</div>
+        <div>
+          <div class="ki-name">Horizontal Pod Autoscaler (HPA)</div>
+          <div class="ki-desc">When CPU exceeds 70%, Kubernetes adds pods (up to 5 max). Scales back down when load drops to save cost.</div>
+        </div>
+      </div>
+      <div class="k8s-item">
+        <div class="ki-icon">🔐</div>
+        <div>
+          <div class="ki-name">Kubernetes Secrets</div>
+          <div class="ki-desc">JWT signing key stored as a Kubernetes Secret, not hardcoded in the image or environment files.</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="slide-num">8 / 11</div>
+  <div class="slide-brand"><span>ZingyCommerce</span></div>
+</div>
+
+<!-- =====================================================
+     SLIDE 9 — API REFERENCE
+===================================================== -->
+<div class="slide">
+  <div class="slide-header">
+    <div class="label">API Reference</div>
+    <h2 class="grad-text-2">REST API Endpoints</h2>
+    <div class="divider"></div>
+  </div>
+
+  <div style="font-size:7.5pt;color:var(--muted);margin-bottom:10px;display:flex;align-items:center;gap:8px;">
+    <span>All requests go through the API Gateway at <code style="color:var(--accent);">http://localhost:3000</code> (local) or the AKS LoadBalancer IP (cloud).</span>
+    <span style="color:var(--accent);font-weight:700;white-space:nowrap;">🔐 = JWT required</span>
+  </div>
+
+  <div class="grid-2" style="gap:12px;flex:1;">
+
+    <!-- Users -->
+    <div>
+      <div style="font-size:8pt;font-weight:700;color:var(--brand2);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">👤 User Service</div>
+      <div class="card" style="padding:0;overflow:hidden;">
+        <table>
+          <tr><th>Method</th><th>Path</th><th>Description</th></tr>
+          <tr><td><span class="method method-post">POST</span></td><td class="path">/users/register</td><td>Create a new account</td></tr>
+          <tr><td><span class="method method-post">POST</span></td><td class="path">/users/login</td><td>Login → returns JWT token</td></tr>
+          <tr><td><span class="method method-get">GET</span></td><td class="path">/users/:id</td><td>Get user profile by ID</td></tr>
+        </table>
+      </div>
+
+      <div style="font-size:8pt;font-weight:700;color:var(--brand2);text-transform:uppercase;letter-spacing:1px;margin:12px 0 8px;">📦 Product Service</div>
+      <div class="card" style="padding:0;overflow:hidden;">
+        <table>
+          <tr><th>Method</th><th>Path</th><th>Description</th></tr>
+          <tr><td><span class="method method-get">GET</span></td><td class="path">/products</td><td>List all products</td></tr>
+          <tr><td><span class="method method-get">GET</span></td><td class="path">/products?search=X</td><td>Search by name</td></tr>
+          <tr><td><span class="method method-get">GET</span></td><td class="path">/products/:id</td><td>Get single product</td></tr>
+          <tr><td><span class="method method-post">POST</span></td><td class="path">/products</td><td>Create a product</td></tr>
+          <tr><td><span class="method method-put">PUT</span></td><td class="path">/products/:id</td><td>Update a product</td></tr>
+          <tr><td><span class="method method-delete">DELETE</span></td><td class="path">/products/:id</td><td>Remove a product</td></tr>
+          <tr><td><span class="method method-patch">PATCH</span></td><td class="path">/products/:id/stock</td><td>Reduce stock quantity</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <!-- Orders + Health -->
+    <div>
+      <div style="font-size:8pt;font-weight:700;color:var(--brand2);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">🧾 Order Service <span class="lock-icon">🔐</span></div>
+      <div class="card" style="padding:0;overflow:hidden;margin-bottom:12px;">
+        <table>
+          <tr><th>Method</th><th>Path</th><th>Description</th></tr>
+          <tr><td><span class="method method-post">POST</span></td><td class="path">/orders</td><td>Place a new order</td></tr>
+          <tr><td><span class="method method-get">GET</span></td><td class="path">/orders?userId=X</td><td>List orders for a user</td></tr>
+          <tr><td><span class="method method-get">GET</span></td><td class="path">/orders/:id</td><td>Get order with items</td></tr>
+          <tr><td><span class="method method-patch">PATCH</span></td><td class="path">/orders/:id/status</td><td>Update order status</td></tr>
+        </table>
+      </div>
+
+      <div style="font-size:8pt;font-weight:700;color:var(--brand2);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">💓 Health Checks</div>
+      <div class="card" style="padding:0;overflow:hidden;margin-bottom:10px;">
+        <table>
+          <tr><th>Path</th><th>Service</th></tr>
+          <tr><td class="path">GET /health</td><td>All services — used by Kubernetes liveness probe</td></tr>
+        </table>
+      </div>
+
+      <!-- Auth example -->
+      <div style="font-size:8pt;font-weight:700;color:var(--brand2);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Example — Place Order</div>
+      <div class="code-block" style="font-size:7.5pt;">
+<span class="c-comment"># 1. Login and save token</span>
+TOKEN=$(curl -s -X POST localhost:3000/users/login \
+  -H <span class="c-string">"Content-Type: application/json"</span> \
+  -d <span class="c-string">'{"email":"x@y.com","password":"secret"}'</span> \
+  | grep -o <span class="c-string">'"token":"[^"]*"'</span> | cut -d<span class="c-string">'"'</span> -f4)
+
+<span class="c-comment"># 2. Place an order</span>
+curl -X POST localhost:3000/orders \
+  -H <span class="c-string">"Authorization: Bearer $TOKEN"</span> \
+  -d <span class="c-string">'{"userId":1,"items":[{"productId":1,
+     "productName":"Headphones","quantity":1,"unitPrice":99.99}]}'</span>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="slide-num">9 / 11</div>
+  <div class="slide-brand"><span>ZingyCommerce</span></div>
+</div>
+
+<!-- =====================================================
+     SLIDE 10 — COST ESTIMATE
+===================================================== -->
+<div class="slide">
+  <div class="blob" style="width:110mm;height:110mm;background:rgba(240,165,0,0.07);top:-20mm;right:-10mm;"></div>
+
+  <div class="slide-header">
+    <div class="label">Cloud Spend</div>
+    <h2 class="grad-text-2">Cost Estimate</h2>
+    <div class="divider"></div>
+  </div>
+
+  <div class="grid-2" style="gap:14px;flex:1;">
+
+    <!-- Cost table -->
+    <div>
+      <div style="font-size:8.5pt;font-weight:700;color:var(--brand2);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;">Monthly Breakdown — East US · Dev Environment</div>
+      <div class="card" style="padding:0;overflow:hidden;margin-bottom:10px;">
+        <div class="cost-row">
+          <div><div class="cost-name">AKS Node Pool</div><div class="cost-sku">2× Standard_B2s (2 vCPU, 4 GB RAM)</div></div>
+          <div class="cost-amt" style="color:var(--danger);">~$60</div>
+        </div>
+        <div class="cost-row">
+          <div><div class="cost-name">Azure Container Registry</div><div class="cost-sku">Basic SKU</div></div>
+          <div class="cost-amt">~$5</div>
+        </div>
+        <div class="cost-row">
+          <div><div class="cost-name">Log Analytics Workspace</div><div class="cost-sku">PerGB2018 · ~3 GB/month</div></div>
+          <div class="cost-amt">~$8</div>
+        </div>
+        <div class="cost-row">
+          <div><div class="cost-name">Load Balancer</div><div class="cost-sku">Standard · 2 public IPs</div></div>
+          <div class="cost-amt">~$10</div>
+        </div>
+        <div class="cost-row">
+          <div><div class="cost-name">Blob Storage (Terraform state)</div><div class="cost-sku">Standard LRS · negligible data</div></div>
+          <div class="cost-amt">&lt;$1</div>
+        </div>
+        <div class="cost-row">
+          <div><div class="cost-name">Outbound bandwidth</div><div class="cost-sku">First 100 GB free, then $0.087/GB</div></div>
+          <div class="cost-amt">~$5</div>
+        </div>
+      </div>
+      <div class="cost-total">
+        <div>
+          <div class="label" style="color:#fff;">Estimated Monthly Total</div>
+          <div style="font-size:7.5pt;color:var(--muted);">Development/learning environment</div>
+        </div>
+        <div class="amount grad-text">~$89 – $110</div>
+      </div>
+    </div>
+
+    <!-- Tips + comparison -->
+    <div style="display:flex;flex-direction:column;gap:12px;">
+      <div>
+        <div style="font-size:8.5pt;font-weight:700;color:var(--brand2);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">💡 Cost-Saving Tips</div>
+
+        <div class="tip-item">
+          <span>💤</span>
+          <div><strong>Pause the cluster when not in use.</strong> <code style="color:var(--accent);font-size:7.5pt;">az aks stop</code> shuts down the VMs — saves ~70% of compute cost. Resume with <code style="color:var(--accent);font-size:7.5pt;">az aks start</code>.</div>
+        </div>
+        <div class="tip-item">
+          <span>🔢</span>
+          <div><strong>Use 1 node for dev.</strong> Set <code style="color:var(--accent);font-size:7.5pt;">node_count = 1</code> in Terraform to save ~$30/month during development.</div>
+        </div>
+        <div class="tip-item">
+          <span>🗑</span>
+          <div><strong>Delete everything when done.</strong> <code style="color:var(--accent);font-size:7.5pt;">az group delete --name zingy-ecommerce-dev-rg</code> removes all resources instantly.</div>
+        </div>
+        <div class="tip-item">
+          <span>🆓</span>
+          <div><strong>Free Azure credits.</strong> New accounts get $200 USD credit for 30 days. More than enough to run this project several times over.</div>
+        </div>
+      </div>
+
+      <!-- Environment comparison -->
+      <div>
+        <div style="font-size:8.5pt;font-weight:700;color:var(--brand2);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Environment Comparison</div>
+        <div class="card" style="padding:0;overflow:hidden;">
+          <table>
+            <tr><th>Environment</th><th>Nodes</th><th>Est. Cost/mo</th></tr>
+            <tr>
+              <td>Dev (1 node)</td>
+              <td>1× B2s</td>
+              <td style="color:var(--success);font-weight:700;">~$45</td>
+            </tr>
+            <tr>
+              <td>Dev (2 nodes)</td>
+              <td>2× B2s</td>
+              <td style="color:var(--accent);font-weight:700;">~$90</td>
+            </tr>
+            <tr>
+              <td>Staging (3 nodes)</td>
+              <td>3× D2s_v3</td>
+              <td style="color:var(--danger);font-weight:700;">~$280</td>
+            </tr>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="slide-num">10 / 11</div>
+  <div class="slide-brand"><span>ZingyCommerce</span></div>
+</div>
+
+<!-- =====================================================
+     SLIDE 11 — AGILE SPRINT TIMELINE
+===================================================== -->
+<div class="slide">
+  <div class="blob" style="width:120mm;height:120mm;background:rgba(168,85,247,0.07);top:-20mm;right:-10mm;"></div>
+
+  <div class="slide-header">
+    <div class="label">Project Methodology</div>
+    <h2 class="grad-text-2">Agile Sprint Timeline</h2>
+    <div class="divider"></div>
+  </div>
+
+  <div style="font-size:7.5pt;color:var(--muted);margin-bottom:12px;">8 two-week sprints · 16 weeks total · iterative delivery from scaffolding to production-ready GitOps</div>
+
+  <!-- Timeline row -->
+  <div class="sprint-timeline">
+    <div class="sprint-col"><div class="sprint-dot done"></div></div>
+    <div class="sprint-col"><div class="sprint-dot done"></div></div>
+    <div class="sprint-col"><div class="sprint-dot done"></div></div>
+    <div class="sprint-col"><div class="sprint-dot done"></div></div>
+    <div class="sprint-col"><div class="sprint-dot done"></div></div>
+    <div class="sprint-col"><div class="sprint-dot done"></div></div>
+    <div class="sprint-col"><div class="sprint-dot done"></div></div>
+    <div class="sprint-col"><div class="sprint-dot ship"></div></div>
+  </div>
+
+  <!-- Sprint cards -->
+  <div style="display:flex;gap:6px;flex:1;">
+
+    <div class="sprint-card">
+      <div class="s-num">Sprint 1</div>
+      <div class="s-weeks">Weeks 1–2</div>
+      <div class="s-title">Architecture &amp; Scaffolding</div>
+      <div class="s-item">Define microservice boundaries</div>
+      <div class="s-item">Initialise Node.js projects</div>
+      <div class="s-item">Design REST API contracts</div>
+      <div class="s-item">Git repo + branch strategy</div>
+    </div>
+
+    <div class="sprint-card">
+      <div class="s-num">Sprint 2</div>
+      <div class="s-weeks">Weeks 3–4</div>
+      <div class="s-title">User &amp; Product Services</div>
+      <div class="s-item">User registration &amp; login</div>
+      <div class="s-item">JWT auth with bcrypt</div>
+      <div class="s-item">Product CRUD + SQLite</div>
+      <div class="s-item">Search &amp; category filter</div>
+    </div>
+
+    <div class="sprint-card">
+      <div class="s-num">Sprint 3</div>
+      <div class="s-weeks">Weeks 5–6</div>
+      <div class="s-title">Order Service &amp; Gateway</div>
+      <div class="s-item">Order placement + status</div>
+      <div class="s-item">Stock reservation flow</div>
+      <div class="s-item">API Gateway routing</div>
+      <div class="s-item">JWT validation middleware</div>
+    </div>
+
+    <div class="sprint-card">
+      <div class="s-num">Sprint 4</div>
+      <div class="s-weeks">Weeks 7–8</div>
+      <div class="s-title">Frontend &amp; Docker</div>
+      <div class="s-item">SPA: browse, cart, checkout</div>
+      <div class="s-item">Order history &amp; tracking</div>
+      <div class="s-item">Dockerfiles (multi-stage)</div>
+      <div class="s-item">docker-compose local dev</div>
+    </div>
+
+    <div class="sprint-card">
+      <div class="s-num">Sprint 5</div>
+      <div class="s-weeks">Weeks 9–10</div>
+      <div class="s-title">Kubernetes Manifests</div>
+      <div class="s-item">Deployments × 2 replicas</div>
+      <div class="s-item">ClusterIP + LoadBalancer</div>
+      <div class="s-item">HPA: CPU-based scaling</div>
+      <div class="s-item">Helm chart + values.yaml</div>
+    </div>
+
+    <div class="sprint-card">
+      <div class="s-num">Sprint 6</div>
+      <div class="s-weeks">Weeks 11–12</div>
+      <div class="s-title">Terraform IaC</div>
+      <div class="s-item">AKS cluster + node pool</div>
+      <div class="s-item">Azure Container Registry</div>
+      <div class="s-item">Remote state in Blob Storage</div>
+      <div class="s-item">Log Analytics workspace</div>
+    </div>
+
+    <div class="sprint-card">
+      <div class="s-num">Sprint 7</div>
+      <div class="s-weeks">Weeks 13–14</div>
+      <div class="s-title">CI/CD Pipeline</div>
+      <div class="s-item">Azure DevOps YAML pipeline</div>
+      <div class="s-item">Docker build &amp; ACR push</div>
+      <div class="s-item">Terraform plan/apply stages</div>
+      <div class="s-item">kubectl rollout to AKS</div>
+    </div>
+
+    <div class="sprint-card" style="border-color:var(--accent);">
+      <div class="s-num" style="color:var(--accent);">Sprint 8</div>
+      <div class="s-weeks">Weeks 15–16</div>
+      <div class="s-title">GitOps &amp; Hardening</div>
+      <div class="s-item">ArgoCD Application + Project</div>
+      <div class="s-item">Multi-repo (GitHub + ADO)</div>
+      <div class="s-item">Namespace: zcommerce</div>
+      <div class="s-item">Cloud UAT &amp; presentation</div>
+    </div>
+
+  </div>
+
+  <!-- Legend -->
+  <div style="display:flex;align-items:center;gap:16px;margin-top:10px;font-size:7.5pt;color:var(--muted);">
+    <div style="display:flex;align-items:center;gap:6px;"><div style="width:10px;height:10px;border-radius:50%;background:linear-gradient(135deg,#22c55e,#16a34a);"></div> Completed</div>
+    <div style="display:flex;align-items:center;gap:6px;"><div style="width:10px;height:10px;border-radius:50%;background:linear-gradient(135deg,var(--accent),#d97706);"></div> Current sprint — UAT &amp; presentation</div>
+    <div style="margin-left:auto;font-style:italic;">Each sprint = 2 weeks · backlog-driven · daily standups · sprint review &amp; retrospective</div>
+  </div>
+
+  <div class="slide-num">11 / 13</div>
+  <div class="slide-brand"><span>ZingyCommerce</span></div>
+</div>
+
+<!-- =====================================================
+     SLIDE 12 — CLOUD DEPLOYMENT CHECKLIST
+===================================================== -->
+<div class="slide">
+  <div class="blob" style="width:110mm;height:110mm;background:rgba(34,197,94,0.06);top:-20mm;right:-10mm;"></div>
+
+  <div class="slide-header">
+    <div class="label">Go Live</div>
+    <h2 class="grad-text-2">Cloud Deployment — Test Users Ready</h2>
+    <div class="divider"></div>
+  </div>
+
+  <div class="grid-2" style="gap:14px;flex:1;">
+
+    <!-- Left: Prerequisites + steps 1-5 -->
+    <div style="display:flex;flex-direction:column;gap:8px;">
+      <div>
+        <div style="font-size:8pt;font-weight:700;color:var(--brand2);text-transform:uppercase;letter-spacing:1px;margin-bottom:7px;">Prerequisites</div>
+        <div style="display:flex;flex-wrap:wrap;gap:0;">
+          <span class="prereq-badge">☁ Azure Subscription</span>
+          <span class="prereq-badge">🔧 Azure CLI</span>
+          <span class="prereq-badge">🏗 Terraform ≥ 1.7</span>
+          <span class="prereq-badge">☸ kubectl</span>
+          <span class="prereq-badge">🐳 Docker</span>
+          <span class="prereq-badge">🔑 az login</span>
+        </div>
+      </div>
+
+      <div class="deploy-step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <div class="step-title">Create Terraform State Backend</div>
+          <div class="step-cmd">az storage account create --name &lt;NAME&gt;tfstate --sku Standard_LRS</div>
+          <div class="step-desc">One-time setup. Stores shared Terraform state in Azure Blob Storage.</div>
+        </div>
+      </div>
+
+      <div class="deploy-step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <div class="step-title">Configure terraform.tfvars</div>
+          <div class="step-cmd">cp terraform.tfvars.example terraform.tfvars</div>
+          <div class="step-desc">Set your prefix, region (eastus), and storage account name. Never commit this file.</div>
+        </div>
+      </div>
+
+      <div class="deploy-step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <div class="step-title">Provision Azure Infrastructure</div>
+          <div class="step-cmd">terraform init &amp;&amp; terraform plan -out=tfplan &amp;&amp; terraform apply tfplan</div>
+          <div class="step-desc">Creates AKS cluster, ACR, Log Analytics workspace. Takes ~12 minutes.</div>
+        </div>
+      </div>
+
+      <div class="deploy-step">
+        <div class="step-num">4</div>
+        <div class="step-body">
+          <div class="step-title">Connect kubectl to AKS</div>
+          <div class="step-cmd">az aks get-credentials --resource-group &lt;RG&gt; --name &lt;AKS&gt;</div>
+          <div class="step-desc">Downloads cluster credentials. Verify with: <span style="color:var(--accent);font-family:monospace;font-size:7.5pt;">kubectl get nodes</span></div>
+        </div>
+      </div>
+
+      <div class="deploy-step">
+        <div class="step-num">5</div>
+        <div class="step-body">
+          <div class="step-title">Build &amp; Push Docker Images to ACR</div>
+          <div class="step-cmd">az acr build --registry &lt;ACR&gt; --image user-service:v1 ./services/user-service</div>
+          <div class="step-desc">Repeat for all 5 services. ACR builds in the cloud — no local Docker needed.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: steps 6-9 + test users note -->
+    <div style="display:flex;flex-direction:column;gap:8px;">
+
+      <div class="deploy-step">
+        <div class="step-num">6</div>
+        <div class="step-body">
+          <div class="step-title">Create Namespace &amp; Secrets</div>
+          <div class="step-cmd">kubectl create ns zcommerce</div>
+          <div class="step-cmd" style="margin-top:4px;">kubectl create secret generic ecommerce-secrets --from-literal=jwt-secret="$(openssl rand -hex 32)" -n zcommerce</div>
+        </div>
+      </div>
+
+      <div class="deploy-step">
+        <div class="step-num">7</div>
+        <div class="step-body">
+          <div class="step-title">Deploy All Services to AKS</div>
+          <div class="step-cmd">kubectl apply -f k8s/ -n zcommerce</div>
+          <div class="step-desc">Applies all Deployments, Services, and HPAs. Kubernetes pulls images from ACR automatically.</div>
+        </div>
+      </div>
+
+      <div class="deploy-step">
+        <div class="step-num">8</div>
+        <div class="step-body">
+          <div class="step-title">Wait for Pods to Become Ready</div>
+          <div class="step-cmd">kubectl rollout status deploy/api-gateway -n zcommerce</div>
+          <div class="step-desc">Run for each service. All pods healthy = green light for test users.</div>
+        </div>
+      </div>
+
+      <div class="deploy-step">
+        <div class="step-num">9</div>
+        <div class="step-body">
+          <div class="step-title">Get Public IPs &amp; Share with Testers</div>
+          <div class="step-cmd">kubectl get svc -n zcommerce</div>
+          <div class="step-desc">Copy the EXTERNAL-IP for <strong>frontend</strong> (port 80) and <strong>api-gateway</strong> (port 80). Share the frontend IP with test users.</div>
+        </div>
+      </div>
+
+      <!-- Test user box -->
+      <div style="padding:12px 14px;background:rgba(34,197,94,0.06);border:1px solid rgba(34,197,94,0.25);border-radius:10px;margin-top:2px;">
+        <div style="font-size:8.5pt;font-weight:700;color:var(--success);margin-bottom:6px;">✅ Test User Journey</div>
+        <div style="font-size:8pt;color:#d0d0ea;line-height:1.7;">
+          1. Open <strong>http://&lt;FRONTEND-IP&gt;</strong> in browser<br>
+          2. Click <strong>Register</strong> → create account with email + password<br>
+          3. Log in → browse products → add to cart<br>
+          4. Place order → view order history<br>
+          5. Test on mobile too — nginx serves static HTML to any device
+        </div>
+      </div>
+
+      <div style="font-size:7.5pt;color:var(--muted);padding:6px 10px;border-left:2px solid var(--accent);background:rgba(240,165,0,0.05);border-radius:0 6px 6px 0;">
+        💡 <strong>Cost tip:</strong> Run <code style="color:var(--accent);">az aks stop --name &lt;AKS&gt; --resource-group &lt;RG&gt;</code> after the presentation to pause the cluster and stop VM billing.
+      </div>
+    </div>
+
+  </div>
+
+  <div class="slide-num">12 / 13</div>
+  <div class="slide-brand"><span>ZingyCommerce</span></div>
+</div>
+
+<!-- =====================================================
+     SLIDE 13 — CLOSING / SUMMARY
+===================================================== -->
+<div class="slide closing">
+  <div class="blob" style="width:180mm;height:180mm;background:rgba(108,59,255,0.12);top:50%;left:50%;transform:translate(-50%,-50%);"></div>
+
+  <div style="font-size:40px;margin-bottom:8px;">⚡</div>
+
+  <div class="label" style="margin-bottom:10px;">Summary</div>
+
+  <h2 class="grad-text">ZingyCommerce</h2>
+
+  <p>
+    A complete, cloud-native ecommerce microservices platform — from a single HTML page
+    to a fully automated CI/CD pipeline deploying to Azure Kubernetes Service.
+  </p>
+
+  <div class="closing-grid">
+    <div class="closing-item">
+      <div class="ci-icon">🏗</div>
+      <h5>Microservices Architecture</h5>
+      <p>5 independent services, each with its own database and clear responsibility boundaries.</p>
+    </div>
+    <div class="closing-item">
+      <div class="ci-icon">🐳</div>
+      <h5>Containerised &amp; Portable</h5>
+      <p>Docker packages every service identically. Runs the same on a laptop or Azure with one command.</p>
+    </div>
+    <div class="closing-item">
+      <div class="ci-icon">☸</div>
+      <h5>Kubernetes Orchestration</h5>
+      <p>AKS handles auto-scaling, self-healing, rolling updates, and load balancing automatically.</p>
+    </div>
+    <div class="closing-item">
+      <div class="ci-icon">🏔</div>
+      <h5>Infrastructure as Code</h5>
+      <p>Terraform provisions every Azure resource reproducibly. The entire cloud environment is in version control.</p>
+    </div>
+    <div class="closing-item">
+      <div class="ci-icon">🔁</div>
+      <h5>Full CI/CD Pipeline</h5>
+      <p>Git push → validate → build → approve → deploy. No manual steps, no SSH uploads, zero-downtime releases.</p>
+    </div>
+    <div class="closing-item">
+      <div class="ci-icon">🔐</div>
+      <h5>Production Security</h5>
+      <p>JWT auth, Kubernetes Secrets, RBAC, managed identity for ACR pull, no passwords in code.</p>
+    </div>
+  </div>
+
+  <div class="slide-num">13 / 13</div>
+  <div class="slide-brand"><span>ZingyCommerce</span></div>
+</div>
+
+</div><!-- end slides-wrap -->
+</body>
+</html>
