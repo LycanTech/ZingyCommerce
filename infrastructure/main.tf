@@ -57,10 +57,10 @@ terraform {
   #
   # Then fill in the values below:
   backend "azurerm" {
-    resource_group_name  = "tfstate-rg"
-    storage_account_name = "REPLACE_WITH_YOUR_STORAGE_ACCOUNT"
+    resource_group_name  = "zcommerce-tfstate-rg"
+    storage_account_name = "zcommercetfstate"
     container_name       = "tfstate"
-    key                  = "ecommerce.terraform.tfstate"
+    key                  = "zcommerce.terraform.tfstate"
   }
 }
 

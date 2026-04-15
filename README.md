@@ -36,7 +36,7 @@ What makes this production-ready:
 | Kubernetes package manager | Helm |
 | GitOps CD (auto-deploy on Git push) | ArgoCD |
 | Infrastructure as Code | Terraform |
-| CI/CD pipeline | Azure DevOps |
+| CI/CD pipeline | Azure DevOps + GitHub Actions |
 | Metrics & dashboards | Prometheus + Grafana |
 | Log aggregation | Loki + Promtail |
 | HTTPS / TLS | cert-manager + Let's Encrypt |
@@ -107,7 +107,7 @@ What makes this production-ready:
 | K8s cluster | Azure Kubernetes Service | Managed Kubernetes |
 | Container registry | Azure Container Registry | Private Docker images |
 | IaC | Terraform | Provision all Azure resources |
-| CI/CD | Azure DevOps | Build, test, deploy pipeline |
+| CI/CD | Azure DevOps + GitHub Actions | Build, test, deploy pipeline (dual repo) |
 | Metrics | Prometheus | Collect service metrics |
 | Dashboards | Grafana | Visualize metrics |
 | Logs | Loki + Promtail | Collect and search pod logs |
@@ -267,7 +267,10 @@ ZingyCommerce/
 │
 ├── k8s/                    # Raw Kubernetes manifests (reference / fallback)
 ├── .azure-pipelines/
-│   └── azure-pipelines.yml # 3-stage CI/CD pipeline
+│   └── azure-pipelines.yml # 3-stage CI/CD pipeline (Azure DevOps)
+├── .github/
+│   └── workflows/
+│       └── ci-cd.yml       # 3-stage CI/CD pipeline (GitHub Actions)
 ├── docker-compose.yml      # Local development
 ├── generate-pdf.js         # Script to regenerate the PDF report
 └── ZingyCommerce-Project-Report.pdf
@@ -281,15 +284,15 @@ No cloud account needed. Everything runs in Docker on your laptop.
 
 ```bash
 # 1. Clone the repo
-git clone https://github.com/chikwex/zingycommerce.git
-cd zingycommerce
+git clone https://github.com/LycanTech/ZingyCommerce.git
+cd ZingyCommerce
 
 # 2. Start all services
 docker compose up --build
 
 # That's it! Open in your browser:
-#   Frontend:    http://localhost:8080
-#   API Gateway: http://localhost:3000
+#   Frontend:    http://localhost:8081
+#   API Gateway: http://localhost:4000
 ```
 
 To stop:
@@ -311,20 +314,21 @@ Terraform needs to store its state file somewhere. We use Azure Blob Storage.
 # Login to Azure
 az login
 
-# Create a resource group for the state file
-az group create --name tfstate-rg --location eastus
-
-# Create a storage account (name must be globally unique, lowercase, 3-24 chars)
+# Resource group, storage account and container are already created:
+#   Resource Group:    zcommerce-tfstate-rg
+#   Storage Account:   zcommercetfstate
+#   Container:         tfstate
+#
+# To recreate from scratch:
+az group create --name zcommerce-tfstate-rg --location eastus
 az storage account create \
-  --name chikwextfstate \
-  --resource-group tfstate-rg \
+  --name zcommercetfstate \
+  --resource-group zcommerce-tfstate-rg \
   --location eastus \
   --sku Standard_LRS
-
-# Create a container inside it
 az storage container create \
   --name tfstate \
-  --account-name chikwextfstate
+  --account-name zcommercetfstate
 ```
 
 ### Step 2: Create your variables file
@@ -332,7 +336,7 @@ az storage container create \
 ```bash
 cp infrastructure/terraform.tfvars.example infrastructure/terraform.tfvars
 # Edit the file and set your values:
-#   prefix      = "chikwex"
+#   prefix      = "zcommerce"
 #   environment = "dev"
 #   location    = "eastus"
 ```
@@ -344,23 +348,24 @@ cd infrastructure
 
 # Downloads the Azure provider plugin and connects to the state backend
 terraform init \
-  -backend-config="storage_account_name=chikwextfstate" \
-  -backend-config="resource_group_name=tfstate-rg" \
+  -backend-config="storage_account_name=zcommercetfstate" \
+  -backend-config="resource_group_name=zcommerce-tfstate-rg" \
   -backend-config="container_name=tfstate" \
-  -backend-config="key=ecommerce.terraform.tfstate"
+  -backend-config="key=zcommerce.terraform.tfstate"
 
 # Preview what will be created (no changes made)
-terraform plan -var="prefix=chikwex" -var="environment=dev"
+terraform plan -var="prefix=zcommerce" -var="environment=dev"
 
 # Create everything (takes ~10 minutes for AKS)
-terraform apply -var="prefix=chikwex" -var="environment=dev"
+terraform apply -var="prefix=zcommerce" -var="environment=dev"
 ```
 
 Terraform creates:
-- Resource Group: `chikwex-ecommerce-dev-rg`
-- Container Registry (ACR): `chikwexcommerceacrdev`
-- Kubernetes Cluster (AKS): `chikwex-aks-dev`
-- Log Analytics Workspace: `chikwex-logs-dev`
+
+- Resource Group: `zcommerce-ecommerce-dev-rg`
+- Container Registry (ACR): `zcommercecommerceacrdev`
+- Kubernetes Cluster (AKS): `zcommerce-aks-dev`
+- Log Analytics Workspace: `zcommerce-logs-dev`
 - NGINX Ingress Controller (via Helm)
 - cert-manager (via Helm)
 - Prometheus + Grafana (via Helm)
@@ -376,8 +381,8 @@ Terraform creates:
 ```bash
 # Get credentials from the Terraform output
 az aks get-credentials \
-  --resource-group chikwex-ecommerce-dev-rg \
-  --name chikwex-aks-dev
+  --resource-group zcommerce-ecommerce-dev-rg \
+  --name zcommerce-aks-dev
 
 # Verify
 kubectl get nodes
@@ -389,11 +394,11 @@ The JWT secret must exist in the cluster before any service starts. Create it on
 
 ```bash
 kubectl create secret generic zingycommerce-secrets \
-  --namespace ecommerce \
+  --namespace zcommerce \
   --from-literal=jwt-secret="$(openssl rand -hex 32)"
 
 # Verify it was created
-kubectl get secret zingycommerce-secrets -n ecommerce
+kubectl get secret zingycommerce-secrets -n zcommerce
 ```
 
 ### Step 3: Build and push your images
@@ -424,12 +429,12 @@ docker push ${ACR_NAME}/frontend:latest
 helm upgrade --install zingycommerce ./helm/zingycommerce \
   -f helm/zingycommerce/values.yaml \
   -f helm/zingycommerce/values-dev.yaml \
-  --namespace ecommerce \
+  --namespace zcommerce \
   --create-namespace
 
 # Check the status
-helm status zingycommerce -n ecommerce
-kubectl get pods -n ecommerce
+helm status zingycommerce -n zcommerce
+kubectl get pods -n zcommerce
 ```
 
 ### Step 5: Set up ArgoCD
@@ -471,44 +476,69 @@ kubectl get svc -n ingress-nginx ingress-nginx-controller
 
 ## 10. Part D: Set Up the CI/CD Pipeline
 
-### Step 1: Create an Azure DevOps project
+### Pre-flight: 6 steps in order
 
-1. Go to https://dev.azure.com
-2. Create a new project: `ZingyCommerce`
-3. Push the code to an Azure Repos Git repo (or use GitHub)
+> ⚠️ **Do these before running any pipeline.** Skipping any step will cause the first run to fail.
 
-### Step 2: Create service connections
+#### Step 1 — Push code to both remotes
 
-In **Project Settings → Service Connections**:
+```bash
+git push -u github main
+git push -u azure main
+```
 
-| Name | Type | Purpose |
-|------|------|---------|
-| `azure-chikwex` | Azure Resource Manager | Terraform + AKS access |
-| `acr-chikwex` | Docker Registry (ACR) | Push Docker images |
+#### Step 2 — Create a Service Principal (both pipelines authenticate with this)
 
-### Step 3: Set pipeline variables
+```bash
+az ad sp create-for-rbac \
+  --name "zcommerce-pipeline-sp" \
+  --role Contributor \
+  --scopes /subscriptions/$(az account show --query id -o tsv) \
+  --sdk-auth
+```
 
-In **Pipelines → Variables**:
+Save the full JSON output — you'll paste it into `AZURE_CREDENTIALS` in GitHub and use it to create the Azure DevOps service connection.
 
-| Variable | Value | Secret? |
-|----------|-------|---------|
-| `AZURE_SERVICE_CONNECTION` | `azure-chikwex` | No |
-| `ACR_SERVICE_CONNECTION` | `acr-chikwex` | No |
-| `TF_STORAGE_ACCOUNT` | `chikwextfstate` | No |
-| `TF_RESOURCE_GROUP` | `tfstate-rg` | No |
-| `GIT_USER_EMAIL` | `ci@chikwex.io` | No |
-| `GIT_USER_NAME` | `ZingyCommerce CI` | No |
-| `ARGOCD_ADMIN_PASSWORD` | `<your-password>` | **Yes** |
+#### Step 3 — Bootstrap infrastructure manually (first time only)
 
-### Step 4: Create the pipeline
+The pipelines build and push Docker images in Stage 1, **before** Stage 2 creates the ACR. On first run this fails — ACR doesn't exist yet. Run Terraform manually once to create it:
 
-1. Go to **Pipelines → New Pipeline**
-2. Select your repo
-3. Select **Existing Azure Pipelines YAML file**
-4. Choose `.azure-pipelines/azure-pipelines.yml`
-5. Click **Run**
+```bash
+cd infrastructure
+terraform init
+terraform apply -var="prefix=zcommerce" -var="environment=dev" -auto-approve
+```
 
-### What the pipeline does:
+After this succeeds, copy the ACR login server from the output:
+
+```bash
+terraform output acr_login_server
+# e.g. zcommercecommerceacrdev.azurecr.io
+```
+
+#### Step 4 — Set up Azure DevOps pipeline *(see Option A below)*
+
+#### Step 5 — Set up GitHub Actions pipeline *(see Option B below)*
+
+#### Step 6 — Trigger both pipelines
+
+```bash
+git push azure main   # triggers Azure DevOps
+git push github main  # triggers GitHub Actions
+```
+
+---
+
+### Pipeline overview
+
+The project ships with **two identical pipelines** — one for each remote:
+
+| Pipeline        | File                                   | Remote          |
+|-----------------|----------------------------------------|-----------------|
+| Azure DevOps    | `.azure-pipelines/azure-pipelines.yml` | `azure` remote  |
+| GitHub Actions  | `.github/workflows/ci-cd.yml`          | `github` remote |
+
+Both run the same 3 stages:
 
 ```
 Stage 1: CI (parallel jobs)
@@ -516,16 +546,87 @@ Stage 1: CI (parallel jobs)
   └── Job B: Build 5 Docker images → push to ACR
              → update image.tag in values.yaml → commit to Git ← GitOps trigger!
 
-Stage 2: TerraformApply  [requires manual approval]
+Stage 2: Terraform Apply  [requires manual approval]
   └── terraform apply → creates/updates AKS, ACR, etc.
 
-Stage 3: BootstrapCluster  [first run only]
+Stage 3: Bootstrap Cluster  [first run only]
   ├── Install NGINX Ingress Controller
   ├── Install cert-manager + ClusterIssuer (Let's Encrypt)
   ├── Install Prometheus + Grafana
   ├── Install Loki
   ├── Install ArgoCD
   └── Register ArgoCD Application → ArgoCD takes over from here!
+```
+
+---
+
+### Option A — Azure DevOps Pipeline
+
+#### Step 1: Create an Azure DevOps project
+
+1. Go to https://dev.azure.com
+2. Create a new project: `ZingyCommerce`
+3. Push the repo to Azure Repos: `git push azure main`
+
+#### Step 2: Create service connections
+
+In **Project Settings → Service Connections**:
+
+| Name               | Type                    | Purpose                  |
+|--------------------|-------------------------|--------------------------|
+| `azure-zcommerce`  | Azure Resource Manager  | Terraform + AKS access   |
+| `acr-zcommerce`    | Docker Registry (ACR)   | Push Docker images       |
+
+#### Step 3: Set pipeline variables
+
+In **Pipelines → Variables**:
+
+| Variable | Value | Secret? |
+|----------|-------|---------|
+| `AZURE_SERVICE_CONNECTION` | `azure-zcommerce` | No |
+| `ACR_SERVICE_CONNECTION` | `acr-zcommerce` | No |
+| `TF_STORAGE_ACCOUNT` | `zcommercetfstate` | No |
+| `TF_RESOURCE_GROUP` | `zcommerce-tfstate-rg` | No |
+| `GIT_USER_EMAIL` | `ci@chikwex.io` | No |
+| `GIT_USER_NAME` | `ZingyCommerce CI` | No |
+| `ARGOCD_ADMIN_PASSWORD` | `<your-password>` | **Yes** |
+
+#### Step 4: Create the pipeline
+
+1. Go to **Pipelines → New Pipeline**
+2. Select your repo
+3. Select **Existing Azure Pipelines YAML file**
+4. Choose `.azure-pipelines/azure-pipelines.yml`
+5. Click **Run**
+
+---
+
+### Option B — GitHub Actions Pipeline
+
+#### Step 1: Add secrets
+
+In GitHub → **Settings → Secrets and variables → Actions**:
+
+| Secret                | Value                                            |
+|-----------------------|--------------------------------------------------|
+| `AZURE_CREDENTIALS`   | Output of `az ad sp create-for-rbac --sdk-auth`  |
+| `ACR_LOGIN_SERVER`    | e.g. `zcommercecommerceacrdev.azurecr.io`        |
+| `ACR_USERNAME`        | ACR admin username                               |
+| `ACR_PASSWORD`        | ACR admin password                               |
+| `TF_STORAGE_ACCOUNT`  | `zcommercetfstate`                               |
+| `TF_RESOURCE_GROUP`   | `zcommerce-tfstate-rg`                           |
+| `GIT_USER_EMAIL`      | `ci@chikwex.io`                                  |
+| `GIT_USER_NAME`       | `ZingyCommerce CI`                               |
+
+#### Step 2: Create the approval environment
+
+In GitHub → **Settings → Environments → New environment**: name it `production` and add yourself as a required reviewer. This is the manual gate before `terraform apply`.
+
+#### Step 3: Push to trigger
+
+```bash
+git push github main
+# Pipeline starts automatically at .github/workflows/ci-cd.yml
 ```
 
 ---
@@ -565,7 +666,7 @@ kubectl port-forward svc/kube-prometheus-stack-prometheus \
 
 In Grafana → **Explore** → select **Loki** data source → run:
 ```
-{namespace="ecommerce"} |= "error"
+{namespace="zcommerce"} |= "error"
 {app="api-gateway"} | json | status >= 500
 ```
 
@@ -612,16 +713,16 @@ curl -X POST $BASE/orders \
 
 ```bash
 # All pods running?
-kubectl get pods -n ecommerce
+kubectl get pods -n zcommerce
 
 # Any recent restarts?
-kubectl get pods -n ecommerce | grep -v "1/1\|2/2"
+kubectl get pods -n zcommerce | grep -v "1/1\|2/2"
 
 # Logs for a specific service
-kubectl logs -n ecommerce -l app.kubernetes.io/name=api-gateway --tail=50
+kubectl logs -n zcommerce -l app.kubernetes.io/name=api-gateway --tail=50
 
 # HPA status (is autoscaling working?)
-kubectl get hpa -n ecommerce
+kubectl get hpa -n zcommerce
 ```
 
 ### Simulate load (watch autoscaling)
@@ -632,7 +733,7 @@ kubectl run -it --rm load-test --image=busybox --restart=Never -- \
   sh -c 'for i in $(seq 1 100); do wget -q -O- http://api-gateway:3000/products; done'
 
 # Watch HPA react
-watch kubectl get hpa -n ecommerce
+watch kubectl get hpa -n zcommerce
 ```
 
 ---
@@ -653,13 +754,13 @@ Monthly cost for the **dev** environment (1 AKS node, minimal replicas):
 **Stop costs when not using:**
 ```bash
 # Stop the AKS node pool (cluster still exists, no node charges)
-az aks stop --resource-group chikwex-ecommerce-dev-rg --name chikwex-aks-dev
+az aks stop --resource-group zcommerce-ecommerce-dev-rg --name zcommerce-aks-dev
 
 # Restart later
-az aks start --resource-group chikwex-ecommerce-dev-rg --name chikwex-aks-dev
+az aks start --resource-group zcommerce-ecommerce-dev-rg --name zcommerce-aks-dev
 
 # Destroy everything (free tier / development done)
-terraform destroy -var="prefix=chikwex" -var="environment=dev"
+terraform destroy -var="prefix=zcommerce" -var="environment=dev"
 ```
 
 ---
@@ -668,7 +769,7 @@ terraform destroy -var="prefix=chikwex" -var="environment=dev"
 
 ### Pods stuck in `Pending`
 ```bash
-kubectl describe pod <pod-name> -n ecommerce
+kubectl describe pod <pod-name> -n zcommerce
 # Look for "Events" at the bottom — usually an image pull error or resource limit
 ```
 
@@ -677,7 +778,7 @@ kubectl describe pod <pod-name> -n ecommerce
 # The pod can't pull the image from ACR. Check:
 # 1. The AcrPull role is assigned to the AKS kubelet identity (done by Terraform)
 # 2. The image tag in values.yaml matches a tag that was pushed
-kubectl describe pod <pod-name> -n ecommerce | grep -A5 "Events"
+kubectl describe pod <pod-name> -n zcommerce | grep -A5 "Events"
 ```
 
 ### ArgoCD not syncing
@@ -700,8 +801,8 @@ kubectl port-forward svc/kube-prometheus-stack-prometheus -n monitoring 9090:909
 
 ### cert-manager not issuing certificates
 ```bash
-kubectl get certificate -n ecommerce
-kubectl describe certificate zingycommerce-tls -n ecommerce
+kubectl get certificate -n zcommerce
+kubectl describe certificate zingycommerce-tls -n zcommerce
 # Common cause: DNS not propagated yet, or port 80 not reachable
 ```
 
@@ -717,9 +818,9 @@ terraform refresh -var="prefix=chikwex" -var="environment=dev"
 
 ```bash
 # ── Helm ──────────────────────────────────────────────────
-helm list -n ecommerce                        # list deployed releases
-helm history zingycommerce -n ecommerce       # deployment history
-helm rollback zingycommerce 1 -n ecommerce    # roll back to revision 1
+helm list -n zcommerce                        # list deployed releases
+helm history zingycommerce -n zcommerce       # deployment history
+helm rollback zingycommerce 1 -n zcommerce    # roll back to revision 1
 
 # ── ArgoCD CLI ─────────────────────────────────────────────
 argocd app list
@@ -728,10 +829,10 @@ argocd app history zingycommerce
 argocd app rollback zingycommerce 2
 
 # ── Kubernetes ────────────────────────────────────────────
-kubectl get all -n ecommerce
-kubectl logs -n ecommerce deploy/api-gateway -f
-kubectl exec -it -n ecommerce deploy/user-service -- sh
-kubectl top pods -n ecommerce
+kubectl get all -n zcommerce
+kubectl logs -n zcommerce deploy/api-gateway -f
+kubectl exec -it -n zcommerce deploy/user-service -- sh
+kubectl top pods -n zcommerce
 
 # ── Terraform ─────────────────────────────────────────────
 terraform show                                # current state

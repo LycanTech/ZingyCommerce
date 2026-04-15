@@ -33,7 +33,7 @@ const doc = new PDFDocument({
   autoFirstPage: false,
   info: {
     Title:   'ZingyCommerce — Project Report',
-    Author:  'ZingyCommerce Team (chikwex)',
+    Author:  'ZingyCommerce Team (zcommerce)',
     Subject: 'Production-Ready Ecommerce Microservices on Azure',
   },
 });
@@ -122,7 +122,7 @@ badges.forEach(([l, col]) => {
   if (bx > W - 200) { bx = PAD + 16; by += 34; }
 });
 
-txt('Built with chikwex Azure resources', PAD + 16, H - 80,
+txt('Built with zcommerce Azure resources', PAD + 16, H - 80,
     { size: 11, color: C.muted });
 txt('5 Node.js microservices  ·  Helm chart  ·  GitOps with ArgoCD  ·  Full observability stack',
     PAD + 16, H - 60, { size: 10, color: C.muted });
@@ -137,13 +137,13 @@ const stack = [
   ['Helm',        'Chart with _helpers.tpl'],
   ['GitOps',      'ArgoCD Application CRD'],
   ['IaC',         'Terraform (azurerm ~3.100)'],
-  ['Pipeline',    'Azure DevOps 3-stage'],
+  ['Pipeline',    'Azure DevOps + GitHub Actions'],
   ['Metrics',     'Prometheus + Grafana'],
   ['Logs',        'Loki + Promtail'],
   ['TLS',         'cert-manager + Let\'s Encrypt'],
   ['Ingress',     'NGINX Ingress Controller'],
   ['Registry',    'Azure Container Registry'],
-  ['Prefix',      'chikwex'],
+  ['Prefix',      'zcommerce'],
 ];
 stack.forEach(([k, v], i) => {
   const ry = 116 + i * 26;
@@ -151,7 +151,7 @@ stack.forEach(([k, v], i) => {
   txt(v, W - 175, ry, { size: 9, color: C.white });
 });
 
-pageNum(1, 12);
+pageNum(1, 13);
 
 // ── PAGE 2 — Architecture ─────────────────────────────────────────────────────
 doc.addPage();
@@ -209,7 +209,7 @@ txt(
   PAD + 12, 474, { size: 9, color: C.muted, width: 456 }
 );
 
-pageNum(2, 12);
+pageNum(2, 13);
 
 // ── PAGE 3 — Microservices ────────────────────────────────────────────────────
 doc.addPage();
@@ -258,7 +258,7 @@ svcs.forEach((s, i) => {
   txt('Kubernetes probe', cx + 10, 464, { size: 7, color: C.muted });
 });
 
-pageNum(3, 12);
+pageNum(3, 13);
 
 // ── PAGE 4 — Helm Chart ───────────────────────────────────────────────────────
 doc.addPage();
@@ -325,7 +325,7 @@ txt(
   PAD + 12, 474, { size: 9, color: C.muted, width: W - 2*PAD - 24 }
 );
 
-pageNum(4, 12);
+pageNum(4, 13);
 
 // ── PAGE 5 — ArgoCD GitOps ───────────────────────────────────────────────────
 doc.addPage();
@@ -381,7 +381,7 @@ cards2.forEach(({ title, body, col }, i) => {
   card(PAD + i*(cw3+10), 220, cw3, 180, title, body, { accent: col });
 });
 
-pageNum(5, 12);
+pageNum(5, 13);
 
 // ── PAGE 6 — Terraform ────────────────────────────────────────────────────────
 doc.addPage();
@@ -390,7 +390,7 @@ sectionTitle('Terraform — Infrastructure as Code', 'Every Azure resource descr
 
 const tfFiles = [
   { file: 'main.tf',      desc: 'azurerm provider, resource group, remote state backend (Azure Blob)', col: C.brand },
-  { file: 'variables.tf', desc: 'prefix="chikwex", environment, location, node_count, node_vm_size, acr_sku', col: C.brand2 },
+  { file: 'variables.tf', desc: 'prefix="zcommerce", environment, location, node_count, node_vm_size, acr_sku', col: C.brand2 },
   { file: 'acr.tf',       desc: 'Azure Container Registry + AcrPull role for AKS kubelet identity', col: C.accent },
   { file: 'aks.tf',       desc: 'AKS cluster (SystemAssigned identity, auto-scaling node pool, OMS agent)', col: C.success },
   { file: 'monitoring.tf',desc: 'Log Analytics Workspace, AKS diagnostic settings (API server + audit logs)', col: C.info },
@@ -410,10 +410,10 @@ tfFiles.forEach(({ file, desc, col }, i) => {
 rect(580, 100, W - 580 - PAD, 460, C.cardBg);
 txt('Resources Created', 592, 114, { size: 11, bold: true, color: C.accent });
 const resources = [
-  ['Resource Group', 'chikwex-ecommerce-<env>-rg'],
-  ['ACR', 'chikwexcommerceacr<env>'],
-  ['AKS', 'chikwex-aks-<env>'],
-  ['Log Analytics', 'chikwex-logs-<env>'],
+  ['Resource Group', 'zcommerce-ecommerce-<env>-rg'],
+  ['ACR', 'zcommercecommerceacr<env>'],
+  ['AKS', 'zcommerce-aks-<env>'],
+  ['Log Analytics', 'zcommerce-logs-<env>'],
   ['NGINX Ingress', 'ingress-nginx namespace'],
   ['cert-manager', 'cert-manager namespace'],
   ['ClusterIssuer', 'letsencrypt-prod'],
@@ -429,12 +429,12 @@ resources.forEach(([k,v], i) => {
   txt(v, 606, ry + 12, { size: 8, color: C.muted });
 });
 
-pageNum(6, 12);
+pageNum(6, 13);
 
 // ── PAGE 7 — CI/CD Pipeline ───────────────────────────────────────────────────
 doc.addPage();
 bg();
-sectionTitle('CI/CD Pipeline — Azure DevOps (GitOps Edition)', '3-stage pipeline: validate → provision → bootstrap');
+sectionTitle('CI/CD Pipelines — Azure DevOps + GitHub Actions', '3-stage pipeline: validate → provision → bootstrap (identical on both remotes)');
 
 const stages = [
   {
@@ -477,7 +477,7 @@ stages.forEach(({ stage, col, jobs }) => {
   sx += sw + 10;
 });
 
-pageNum(7, 12);
+pageNum(7, 13);
 
 // ── PAGE 8 — Monitoring ──────────────────────────────────────────────────────
 doc.addPage();
@@ -510,7 +510,7 @@ const monCards = [
       '5xx error rate per service',
       'Loki log search integrated',
       'Refresh: every 30 seconds',
-      'URL: https://grafana.chikwex.io',
+      'URL: https://grafana.zcommerce.io',
     ],
   },
   {
@@ -520,10 +520,10 @@ const monCards = [
       'Promtail runs as DaemonSet on every node',
       'Tails /var/log/pods/* from all containers',
       'Adds labels: namespace, pod, app, container',
-      'Only collects: ecommerce, monitoring, argocd',
+      'Only collects: zcommerce, monitoring, argocd',
       '30-day log retention, 20 GB volume',
       'Query in Grafana Explore with LogQL:',
-      '  {namespace="ecommerce"} |= "error"',
+      '  {namespace="zcommerce"} |= "error"',
       '  {app="api-gateway"} | json | status>=500',
     ],
   },
@@ -555,7 +555,7 @@ monCards.forEach(({ title, col, items }, i) => {
   });
 });
 
-pageNum(8, 12);
+pageNum(8, 13);
 
 // ── PAGE 9 — Docker & Kubernetes ────────────────────────────────────────────
 doc.addPage();
@@ -594,7 +594,7 @@ const k8sConcepts = [
   ['ClusterIP Service', 'Internal DNS name (e.g. user-service:3001). Not accessible externally.'],
   ['NGINX Ingress', 'Routes /api/* to api-gateway, /* to frontend. Single public IP.'],
   ['HPA', 'Auto-scales pods when CPU > 70% or Memory > 80%.'],
-  ['Namespace', '"ecommerce" — logical isolation for all app pods.'],
+  ['Namespace', '"zcommerce" — logical isolation for all app pods.'],
   ['Secret', 'zingycommerce-secrets — JWT secret key, created once manually.'],
   ['Liveness Probe', 'K8s restarts pod if GET /health fails.'],
   ['Readiness Probe', 'K8s stops routing traffic to pod until /health passes.'],
@@ -605,7 +605,7 @@ k8sConcepts.forEach(([k, v], i) => {
   txt(v, ky + 12, ry + 14, { size: 8, color: C.muted, width: W - PAD - 400 - PAD - 24 });
 });
 
-pageNum(9, 12);
+pageNum(9, 13);
 
 // ── PAGE 10 — API Reference ──────────────────────────────────────────────────
 doc.addPage();
@@ -653,25 +653,25 @@ endpoints.forEach(({ method, path, auth, desc }, i) => {
   txt(desc, ex, ry + 8, { size: 8, color: C.muted, width: colW2[3] });
 });
 
-pageNum(10, 12);
+pageNum(10, 13);
 
 // ── PAGE 11 — Azure Resources & Security ────────────────────────────────────
 doc.addPage();
 bg();
-sectionTitle('Azure Resources & Security', 'All resources use chikwex prefix for easy identification and cost tracking');
+sectionTitle('Azure Resources & Security', 'All resources use zcommerce prefix for easy identification and cost tracking');
 
 const azureResources = [
-  { name: 'AKS (Azure Kubernetes Service)', id: 'chikwex-aks-<env>', col: C.brand,
+  { name: 'AKS (Azure Kubernetes Service)', id: 'zcommerce-aks-<env>', col: C.brand,
     notes: 'SystemAssigned identity, auto-scaling 1–4 nodes, Standard_B2s (dev) / Standard_D2s_v3 (prod), OMS agent for Log Analytics.' },
-  { name: 'ACR (Azure Container Registry)', id: 'chikwexcommerceacr<env>', col: C.brand2,
+  { name: 'ACR (Azure Container Registry)', id: 'zcommercecommerceacr<env>', col: C.brand2,
     notes: 'Basic SKU (~$5/mo). Stores all 5 Docker images. AcrPull role assigned to AKS kubelet identity (no passwords needed).' },
-  { name: 'Log Analytics Workspace', id: 'chikwex-logs-<env>', col: C.info,
+  { name: 'Log Analytics Workspace', id: 'zcommerce-logs-<env>', col: C.info,
     notes: 'PerGB2018 SKU. Receives AKS control-plane logs (api-server, scheduler, audit). 30-day retention. First 5 GB/month free.' },
-  { name: 'Resource Group', id: 'chikwex-ecommerce-<env>-rg', col: C.success,
+  { name: 'Resource Group', id: 'zcommerce-ecommerce-<env>-rg', col: C.success,
     notes: 'All resources in one group — easy to see costs, delete everything together with one command.' },
   { name: 'Azure Load Balancer', id: 'auto-created by NGINX Ingress', col: C.accent,
     notes: 'One public IP. Created automatically when NGINX Ingress Controller Helm chart is installed. Routes to NGINX pods.' },
-  { name: 'Terraform State (Blob Storage)', id: 'chikwextfstate / tfstate container', col: C.muted,
+  { name: 'Terraform State (Blob Storage)', id: 'zcommercetfstate / tfstate container', col: C.muted,
     notes: 'Remote state enables team collaboration — everyone shares the same view of what Terraform created.' },
 ];
 
@@ -684,7 +684,7 @@ azureResources.forEach(({ name, id, col, notes }, i) => {
   txt(notes, PAD + 12, ry + 38, { size: 8.5, color: C.muted, width: W - 2*PAD - 24 });
 });
 
-pageNum(11, 12);
+pageNum(11, 13);
 
 // ── PAGE 12 — Summary & URLs ──────────────────────────────────────────────────
 doc.addPage();
@@ -705,6 +705,7 @@ const checks = [
   { label: 'ArgoCD AppProject RBAC',                 done: true  },
   { label: 'Terraform Infrastructure as Code',       done: true  },
   { label: 'Azure DevOps 3-stage pipeline',         done: true  },
+  { label: 'GitHub Actions 3-stage pipeline',       done: true  },
   { label: 'NGINX Ingress (single public IP)',       done: true  },
   { label: 'TLS/HTTPS (cert-manager + Let\'s Encrypt)',done:true },
   { label: 'Prometheus metrics scraping',            done: true  },
@@ -728,10 +729,10 @@ const half = Math.ceil(checks.length / 2);
 rect(PAD, 440, W - 2*PAD, 100, C.cardBg);
 txt('Live URLs (once deployed)', PAD + 12, 452, { size: 11, bold: true, color: C.accent });
 const urls = [
-  ['Shop Frontend', 'https://zingycommerce.chikwex.io', C.success],
-  ['ArgoCD UI', 'https://argocd.chikwex.io', C.brand],
-  ['Grafana Dashboards', 'https://grafana.chikwex.io', C.brand2],
-  ['API Gateway', 'https://zingycommerce.chikwex.io/api', C.info],
+  ['Shop Frontend', 'https://zingycommerce.zcommerce.io', C.success],
+  ['ArgoCD UI', 'https://argocd.zcommerce.io', C.brand],
+  ['Grafana Dashboards', 'https://grafana.zcommerce.io', C.brand2],
+  ['API Gateway', 'https://zingycommerce.zcommerce.io/api', C.info],
 ];
 urls.forEach(([label, url, col], i) => {
   const ux = PAD + 12 + i * (( W - 2*PAD - 24) / 4);
@@ -739,8 +740,104 @@ urls.forEach(([label, url, col], i) => {
   txt(url, ux, 488, { size: 8, color: C.muted });
 });
 
-pageNum(12, 12);
+pageNum(12, 13);
+
+// ── PAGE 13 — Pipeline Deployment Pre-flight ─────────────────────────────────
+doc.addPage();
+bg();
+sectionTitle('Pipeline Deployment — 6 Steps in Order', 'Complete these before running any pipeline. Skipping any step causes the first run to fail.');
+
+const preflightSteps = [
+  {
+    num: '1',
+    title: 'Push Code to Both Remotes',
+    cmd: 'git push -u github main\ngit push -u azure main',
+    desc: 'Both pipelines watch the main branch. Code must exist on both remotes before any trigger fires.',
+    col: C.brand,
+  },
+  {
+    num: '2',
+    title: 'Create a Service Principal',
+    cmd: 'az ad sp create-for-rbac --name "zcommerce-pipeline-sp" \\\n  --role Contributor \\\n  --scopes /subscriptions/$(az account show --query id -o tsv) \\\n  --sdk-auth',
+    desc: 'Save the full JSON output. Paste as AZURE_CREDENTIALS in GitHub Secrets and use it to create the Azure DevOps service connection.',
+    col: C.brand2,
+  },
+  {
+    num: '3',
+    title: 'Bootstrap Infrastructure Manually (first time only)',
+    cmd: 'cd infrastructure && terraform init\nterraform apply -var="prefix=zcommerce" -var="environment=dev" -auto-approve',
+    desc: 'Stage 1 pushes images to ACR before Stage 2 creates it — ACR must exist first. Run once, then pipelines take over.',
+    col: C.accent,
+  },
+  {
+    num: '4',
+    title: 'Set Up Azure DevOps Pipeline',
+    cmd: 'New Pipeline → Existing YAML → .azure-pipelines/azure-pipelines.yml',
+    desc: 'Add pipeline variables: ACR_LOGIN_SERVER, ACR_USERNAME, ACR_PASSWORD, TF_STORAGE_ACCOUNT. Create Azure RM service connection named "azure-service-connection".',
+    col: C.info,
+  },
+  {
+    num: '5',
+    title: 'Set Up GitHub Actions Pipeline',
+    cmd: 'Settings → Secrets → Actions → New repository secret',
+    desc: 'Add: AZURE_CREDENTIALS (full SP JSON), ACR_LOGIN_SERVER, ACR_USERNAME, ACR_PASSWORD, TF_STORAGE_ACCOUNT, TF_RESOURCE_GROUP. Create a "production" environment with required reviewers.',
+    col: C.success,
+  },
+  {
+    num: '6',
+    title: 'Trigger Both Pipelines',
+    cmd: 'git push azure main   # triggers Azure DevOps\ngit push github main  # triggers GitHub Actions',
+    desc: 'Each push triggers its pipeline independently. Stage 2 (Terraform Apply) requires manual approval before infrastructure changes are applied.',
+    col: C.brand,
+  },
+];
+
+const pfW = (W - 2*PAD - 20) / 2;
+preflightSteps.forEach(({ num, title, cmd, desc, col }, i) => {
+  const col_idx = i % 2;
+  const row_idx = Math.floor(i / 2);
+  const px = PAD + col_idx * (pfW + 20);
+  const py = 100 + row_idx * 150;
+
+  rect(px, py, pfW, 138, C.cardBg);
+  doc.rect(px, py, 3, 138).fill(col);
+
+  // step number badge
+  rect(px + 12, py + 10, 22, 22, col + '33', 11);
+  txt(num, px + 17, py + 14, { size: 10, bold: true, color: col });
+
+  txt(title, px + 42, py + 14, { size: 10, bold: true });
+
+  // command box
+  rect(px + 12, py + 40, pfW - 24, cmd.split('\n').length * 14 + 12, '#0a0a14', 4);
+  cmd.split('\n').forEach((line_text, li) => {
+    txt(line_text, px + 20, py + 46 + li * 14, { size: 7.5, color: C.accent });
+  });
+
+  const descY = py + 40 + cmd.split('\n').length * 14 + 18;
+  txt(desc, px + 12, descY, { size: 8, color: C.muted, width: pfW - 24 });
+});
+
+// pipeline map footer
+const fY = H - 80;
+rect(PAD, fY, W - 2*PAD, 50, C.cardBg);
+txt('Pipeline Stages (Azure DevOps & GitHub Actions — identical)', PAD + 12, fY + 8, { size: 9, bold: true, color: C.accent });
+
+const stageBoxes = [
+  ['Stage 1: CI', 'Validate TF · Build images · Update Helm image.tag', C.brand],
+  ['Stage 2: Terraform Apply  ✋', 'Manual approval gate · terraform apply', C.accent],
+  ['Stage 3: Bootstrap K8s', 'NGINX · cert-manager · Prometheus · Loki · ArgoCD', C.success],
+];
+const sbW = (W - 2*PAD - 50) / 3;
+stageBoxes.forEach(([label, sub, col], i) => {
+  const sbX = PAD + 12 + i * (sbW + 13);
+  rect(sbX, fY + 26, sbW, 18, col + '22', 4);
+  txt(label, sbX + 6, fY + 30, { size: 8, bold: true, color: col });
+  if (i < 2) txt('→', sbX + sbW + 3, fY + 30, { size: 9, color: C.muted });
+});
+
+pageNum(13, 13);
 
 // ── Finalize ──────────────────────────────────────────────────────────────────
 doc.end();
-console.log('✓ ZingyCommerce-Project-Report.pdf generated (12 pages)');
+console.log('✓ ZingyCommerce-Project-Report.pdf generated (13 pages)');

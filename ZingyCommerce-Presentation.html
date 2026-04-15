@@ -878,7 +878,7 @@
     <div class="dot"></div>
     ZingyCommerce — Project Presentation
   </div>
-  <span class="toolbar-info">13 slides · Open in browser → Print → Save as PDF (A4 Landscape, No margins)</span>
+  <span class="toolbar-info">14 slides · Open in browser → Print → Save as PDF (A4 Landscape, No margins)</span>
   <button class="btn-print" onclick="window.print()">🖨 Save as PDF</button>
 </div>
 
@@ -910,6 +910,7 @@
     <span class="tag">Kubernetes (AKS)</span>
     <span class="tag">Terraform</span>
     <span class="tag">Azure DevOps</span>
+    <span class="tag">GitHub Actions</span>
     <span class="tag">Microservices</span>
     <span class="tag">API Gateway</span>
     <span class="tag">JWT Auth</span>
@@ -930,7 +931,7 @@
     </div>
     <div class="meta-item">
       <span class="meta-label">Pipeline</span>
-      <span class="meta-value">Azure DevOps CI/CD</span>
+      <span class="meta-value">Azure DevOps + GitHub Actions</span>
     </div>
   </div>
 
@@ -1396,14 +1397,20 @@
 
   <div class="slide-header">
     <div class="label">DevOps</div>
-    <h2 class="grad-text-2">CI/CD Pipeline — Azure DevOps</h2>
+    <h2 class="grad-text-2">CI/CD Pipelines — Dual Repo</h2>
     <div class="divider"></div>
   </div>
 
-  <!-- Trigger banner -->
-  <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:rgba(108,59,255,0.08);border:1px solid var(--border);border-radius:8px;margin-bottom:14px;font-size:8.5pt;">
-    <span style="font-size:16px;">🚀</span>
-    <span><strong>Trigger:</strong> Every push to the <code style="color:var(--accent);">main</code> branch automatically starts the pipeline. Markdown-only changes are excluded.</span>
+  <!-- Dual pipeline banner -->
+  <div style="display:flex;gap:8px;margin-bottom:12px;">
+    <div style="flex:1;display:flex;align-items:center;gap:8px;padding:8px 12px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.25);border-radius:8px;font-size:8pt;">
+      <span style="font-size:14px;">🔵</span>
+      <div><strong style="color:#60a5fa;">Azure DevOps</strong> — <code style="color:var(--accent);">.azure-pipelines/azure-pipelines.yml</code> · triggers on push to <code style="color:var(--accent);">azure</code> remote</div>
+    </div>
+    <div style="flex:1;display:flex;align-items:center;gap:8px;padding:8px 12px;background:rgba(34,197,94,0.07);border:1px solid rgba(34,197,94,0.25);border-radius:8px;font-size:8pt;">
+      <span style="font-size:14px;">⚫</span>
+      <div><strong style="color:#4ade80;">GitHub Actions</strong> — <code style="color:var(--accent);">.github/workflows/ci-cd.yml</code> · triggers on push to <code style="color:var(--accent);">github</code> remote</div>
+    </div>
   </div>
 
   <!-- Pipeline stages -->
@@ -1415,15 +1422,15 @@
       <div style="font-size:7.5pt;color:var(--muted);margin-bottom:10px;">Runs in parallel: two jobs at the same time</div>
 
       <div style="font-size:8pt;font-weight:700;margin-bottom:6px;color:var(--brand2);">Job A: Terraform Validation</div>
-      <div class="pipe-step"><div class="pipe-dot" style="background:var(--info);"></div><div><strong>terraform init</strong> — connects to remote state backend</div></div>
+      <div class="pipe-step"><div class="pipe-dot" style="background:var(--info);"></div><div><strong>terraform init</strong> — connects to remote state (zcommercetfstate)</div></div>
       <div class="pipe-step"><div class="pipe-dot" style="background:var(--info);"></div><div><strong>terraform fmt -check</strong> — enforces consistent code style</div></div>
       <div class="pipe-step"><div class="pipe-dot" style="background:var(--info);"></div><div><strong>terraform validate</strong> — checks syntax correctness</div></div>
-      <div class="pipe-step"><div class="pipe-dot" style="background:var(--info);"></div><div><strong>terraform plan -out=tfplan</strong> — previews changes, saves plan as pipeline artifact</div></div>
+      <div class="pipe-step"><div class="pipe-dot" style="background:var(--info);"></div><div><strong>terraform plan -out=tfplan</strong> — previews changes, uploads as artifact</div></div>
 
-      <div style="font-size:8pt;font-weight:700;margin:10px 0 6px;color:var(--brand2);">Job B: Docker Build &amp; Push</div>
-      <div class="pipe-step"><div class="pipe-dot" style="background:var(--info);"></div><div>Login to Azure Container Registry</div></div>
-      <div class="pipe-step"><div class="pipe-dot" style="background:var(--info);"></div><div>Build &amp; push 5 images — tagged with Build ID <em>and</em> latest</div></div>
-      <div class="pipe-step"><div class="pipe-dot" style="background:var(--info);"></div><div>Each image: user · product · order · api-gateway · frontend</div></div>
+      <div style="font-size:8pt;font-weight:700;margin:10px 0 6px;color:var(--brand2);">Job B: Docker Build &amp; GitOps Trigger</div>
+      <div class="pipe-step"><div class="pipe-dot" style="background:var(--info);"></div><div>Login to ACR · build &amp; push all 5 images tagged with commit SHA</div></div>
+      <div class="pipe-step"><div class="pipe-dot" style="background:var(--info);"></div><div>Update <code>image.tag</code> in <code>helm/values.yaml</code> with <strong>yq</strong></div></div>
+      <div class="pipe-step"><div class="pipe-dot" style="background:var(--info);"></div><div>Commit &amp; push <code>[skip ci]</code> → ArgoCD detects change → rolls out pods</div></div>
     </div>
 
     <div class="pipe-arrow">→</div>
@@ -1433,32 +1440,34 @@
       <h4 style="color:var(--accent);">② CD — Terraform Apply</h4>
       <div style="font-size:7.5pt;color:var(--muted);margin-bottom:10px;">⏸ Manual approval gate required</div>
 
-      <div class="pipe-step"><div class="pipe-dot" style="background:var(--accent);"></div><div>Team member clicks <strong>Approve</strong> in Azure DevOps Environments</div></div>
-      <div class="pipe-step"><div class="pipe-dot" style="background:var(--accent);"></div><div><strong>terraform init</strong> — fresh agent re-initialises</div></div>
+      <div style="font-size:7.5pt;padding:5px 8px;background:rgba(59,130,246,0.07);border-radius:5px;margin-bottom:8px;color:var(--muted);">
+        Azure DevOps: approve in <em>Environments → production</em><br>
+        GitHub Actions: approve in <em>Settings → Environments → production</em>
+      </div>
+      <div class="pipe-step"><div class="pipe-dot" style="background:var(--accent);"></div><div><strong>terraform init</strong> — fresh agent re-initialises with state backend</div></div>
       <div class="pipe-step"><div class="pipe-dot" style="background:var(--accent);"></div><div>Download saved plan artifact from Stage 1</div></div>
       <div class="pipe-step"><div class="pipe-dot" style="background:var(--accent);"></div><div><strong>terraform apply tfplan</strong> — creates/updates ACR, AKS, Log Analytics</div></div>
-      <div class="pipe-step"><div class="pipe-dot" style="background:var(--accent);"></div><div>Read <code>terraform output</code> and export AKS name &amp; ACR URL to Stage 3</div></div>
+      <div class="pipe-step"><div class="pipe-dot" style="background:var(--accent);"></div><div>Export AKS cluster name &amp; ACR URL to Stage 3 as outputs</div></div>
     </div>
 
     <div class="pipe-arrow">→</div>
 
-    <!-- Stage 3: Deploy K8s -->
+    <!-- Stage 3: Bootstrap -->
     <div class="pipe-stage">
-      <h4 style="color:var(--success);">③ CD — Deploy to AKS</h4>
-      <div style="font-size:7.5pt;color:var(--muted);margin-bottom:10px;">Runs after Terraform apply succeeds</div>
+      <h4 style="color:var(--success);">③ CD — Bootstrap &amp; ArgoCD</h4>
+      <div style="font-size:7.5pt;color:var(--muted);margin-bottom:10px;">First-run cluster setup · ArgoCD takes over after</div>
 
       <div class="pipe-step"><div class="pipe-dot" style="background:var(--success);"></div><div><strong>az aks get-credentials</strong> — connects kubectl to the cluster</div></div>
-      <div class="pipe-step"><div class="pipe-dot" style="background:var(--success);"></div><div>Replace <code>&lt;ACR_NAME&gt;</code> placeholder in k8s manifests with real ACR URL</div></div>
-      <div class="pipe-step"><div class="pipe-dot" style="background:var(--success);"></div><div>Pin all images to this Build ID (no floating <em>latest</em> in production)</div></div>
-      <div class="pipe-step"><div class="pipe-dot" style="background:var(--success);"></div><div><strong>kubectl apply -f k8s/</strong> — deploys all 5 services + HPA</div></div>
-      <div class="pipe-step"><div class="pipe-dot" style="background:var(--success);"></div><div><strong>kubectl rollout status</strong> — waits for each deployment (5 min timeout)</div></div>
-      <div class="pipe-step"><div class="pipe-dot" style="background:var(--success);"></div><div>Print public IPs for API Gateway and Frontend</div></div>
+      <div class="pipe-step"><div class="pipe-dot" style="background:var(--success);"></div><div>Helm install: NGINX Ingress · cert-manager · ClusterIssuer</div></div>
+      <div class="pipe-step"><div class="pipe-dot" style="background:var(--success);"></div><div>Helm install: Prometheus + Grafana · Loki log aggregation</div></div>
+      <div class="pipe-step"><div class="pipe-dot" style="background:var(--success);"></div><div>Install ArgoCD · apply <code>appproject.yaml</code> + <code>application.yaml</code></div></div>
+      <div class="pipe-step"><div class="pipe-dot" style="background:var(--success);"></div><div>ArgoCD syncs Helm chart from Git — <strong>no more kubectl apply needed</strong></div></div>
     </div>
 
   </div>
 
   <div style="margin-top:10px;font-size:7.5pt;color:var(--muted);padding:7px 12px;background:rgba(34,197,94,0.05);border:1px solid rgba(34,197,94,0.2);border-radius:6px;">
-    ✅ &nbsp; After Stage 3 completes, every pod is running the new image. Zero-downtime because Kubernetes does a rolling update — replicas are replaced one at a time.
+    ✅ &nbsp; After Stage 3, every future push to <strong>either remote</strong> triggers a new image build. ArgoCD detects the updated <code>image.tag</code> in Git and performs a zero-downtime rolling update automatically.
   </div>
 
   <div class="slide-num">7 / 11</div>
@@ -1894,7 +1903,7 @@ curl -X POST localhost:3000/orders \
     <div style="margin-left:auto;font-style:italic;">Each sprint = 2 weeks · backlog-driven · daily standups · sprint review &amp; retrospective</div>
   </div>
 
-  <div class="slide-num">11 / 13</div>
+  <div class="slide-num">11 / 14</div>
   <div class="slide-brand"><span>ZingyCommerce</span></div>
 </div>
 
@@ -2030,12 +2039,114 @@ curl -X POST localhost:3000/orders \
 
   </div>
 
-  <div class="slide-num">12 / 13</div>
+  <div class="slide-num">12 / 14</div>
   <div class="slide-brand"><span>ZingyCommerce</span></div>
 </div>
 
 <!-- =====================================================
-     SLIDE 13 — CLOSING / SUMMARY
+     SLIDE 13 — PIPELINE DEPLOYMENT PRE-FLIGHT
+===================================================== -->
+<div class="slide">
+  <div class="blob" style="width:120mm;height:120mm;background:rgba(108,59,255,0.07);top:-15mm;right:-10mm;"></div>
+
+  <div class="slide-header">
+    <div class="label">CI/CD Pipelines</div>
+    <h2 class="grad-text">Pipeline Deployment — 6 Steps in Order</h2>
+    <div class="divider"></div>
+  </div>
+
+  <div style="font-size:8pt;color:var(--muted);margin-bottom:10px;">
+    ⚠️ Complete these steps before running any pipeline. Skipping any step will cause the first run to fail.
+  </div>
+
+  <div class="grid-2" style="gap:14px;flex:1;">
+
+    <!-- Left: Steps 1–3 -->
+    <div style="display:flex;flex-direction:column;gap:8px;">
+
+      <div class="deploy-step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <div class="step-title">Push Code to Both Remotes</div>
+          <div class="step-cmd">git push -u github main</div>
+          <div class="step-cmd" style="margin-top:3px;">git push -u azure main</div>
+          <div class="step-desc">Both pipelines watch the <code style="color:var(--accent);font-size:7.5pt;">main</code> branch. Code must exist on both remotes before any trigger fires.</div>
+        </div>
+      </div>
+
+      <div class="deploy-step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <div class="step-title">Create a Service Principal</div>
+          <div class="step-cmd">az ad sp create-for-rbac --name "zcommerce-pipeline-sp" --role Contributor --sdk-auth</div>
+          <div class="step-desc">Save the full JSON — paste as <code style="color:var(--accent);font-size:7.5pt;">AZURE_CREDENTIALS</code> in GitHub Secrets and as the Azure DevOps service connection.</div>
+        </div>
+      </div>
+
+      <div class="deploy-step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <div class="step-title">Bootstrap Infrastructure Manually (first time only)</div>
+          <div class="step-cmd">cd infrastructure &amp;&amp; terraform init</div>
+          <div class="step-cmd" style="margin-top:3px;">terraform apply -var="prefix=zcommerce" -var="environment=dev" -auto-approve</div>
+          <div class="step-desc">Stage 1 pushes images to ACR before Stage 2 creates it — ACR must exist first. Run once, then pipelines take over.</div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Right: Steps 4–6 + pipeline map -->
+    <div style="display:flex;flex-direction:column;gap:8px;">
+
+      <div class="deploy-step">
+        <div class="step-num">4</div>
+        <div class="step-body">
+          <div class="step-title">Set Up Azure DevOps Pipeline</div>
+          <div class="step-cmd">New Pipeline → Existing YAML → .azure-pipelines/azure-pipelines.yml</div>
+          <div class="step-desc">Add pipeline variables: <code style="color:var(--accent);font-size:7.5pt;">ACR_LOGIN_SERVER</code>, <code style="color:var(--accent);font-size:7.5pt;">ACR_USERNAME</code>, <code style="color:var(--accent);font-size:7.5pt;">ACR_PASSWORD</code>, <code style="color:var(--accent);font-size:7.5pt;">TF_STORAGE_ACCOUNT</code>. Create an Azure RM service connection named <code style="color:var(--accent);font-size:7.5pt;">azure-service-connection</code>.</div>
+        </div>
+      </div>
+
+      <div class="deploy-step">
+        <div class="step-num">5</div>
+        <div class="step-body">
+          <div class="step-title">Set Up GitHub Actions Pipeline</div>
+          <div class="step-cmd">Settings → Secrets → Actions</div>
+          <div class="step-desc">Add secrets: <code style="color:var(--accent);font-size:7.5pt;">AZURE_CREDENTIALS</code> (full SP JSON), <code style="color:var(--accent);font-size:7.5pt;">ACR_LOGIN_SERVER</code>, <code style="color:var(--accent);font-size:7.5pt;">ACR_USERNAME</code>, <code style="color:var(--accent);font-size:7.5pt;">ACR_PASSWORD</code>, <code style="color:var(--accent);font-size:7.5pt;">TF_STORAGE_ACCOUNT</code>, <code style="color:var(--accent);font-size:7.5pt;">TF_RESOURCE_GROUP</code>. Create a <code style="color:var(--accent);font-size:7.5pt;">production</code> environment with required reviewers for the approval gate.</div>
+        </div>
+      </div>
+
+      <div class="deploy-step">
+        <div class="step-num">6</div>
+        <div class="step-body">
+          <div class="step-title">Trigger Both Pipelines</div>
+          <div class="step-cmd">git push azure main &amp;&amp; git push github main</div>
+          <div class="step-desc">Each push triggers its pipeline independently. Stage 2 (Terraform Apply) requires manual approval before infrastructure changes are applied.</div>
+        </div>
+      </div>
+
+      <!-- Pipeline stage map -->
+      <div style="padding:10px 12px;background:rgba(108,59,255,0.06);border:1px solid rgba(108,59,255,0.2);border-radius:10px;margin-top:2px;">
+        <div style="font-size:7.5pt;font-weight:700;color:var(--brand);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">Pipeline Stages (both pipelines identical)</div>
+        <div style="display:flex;align-items:center;gap:6px;font-size:7.5pt;">
+          <span style="background:rgba(108,59,255,0.18);color:var(--brand);padding:3px 8px;border-radius:6px;font-weight:700;">Stage 1 CI</span>
+          <span style="color:var(--muted);">→</span>
+          <span style="background:rgba(240,165,0,0.15);color:var(--accent);padding:3px 8px;border-radius:6px;font-weight:700;">Stage 2 Terraform Apply ✋</span>
+          <span style="color:var(--muted);">→</span>
+          <span style="background:rgba(34,197,94,0.12);color:var(--success);padding:3px 8px;border-radius:6px;font-weight:700;">Stage 3 Bootstrap K8s</span>
+        </div>
+        <div style="font-size:7pt;color:var(--muted);margin-top:5px;">✋ = manual approval gate before infra changes apply</div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="slide-num">13 / 14</div>
+  <div class="slide-brand"><span>ZingyCommerce</span></div>
+</div>
+
+<!-- =====================================================
+     SLIDE 14 — CLOSING / SUMMARY
 ===================================================== -->
 <div class="slide closing">
   <div class="blob" style="width:180mm;height:180mm;background:rgba(108,59,255,0.12);top:50%;left:50%;transform:translate(-50%,-50%);"></div>
@@ -2074,8 +2185,8 @@ curl -X POST localhost:3000/orders \
     </div>
     <div class="closing-item">
       <div class="ci-icon">🔁</div>
-      <h5>Full CI/CD Pipeline</h5>
-      <p>Git push → validate → build → approve → deploy. No manual steps, no SSH uploads, zero-downtime releases.</p>
+      <h5>Dual CI/CD Pipeline</h5>
+      <p>Push to GitHub or Azure DevOps — both run identical 3-stage pipelines. Validate → build → approve → ArgoCD deploys.</p>
     </div>
     <div class="closing-item">
       <div class="ci-icon">🔐</div>
@@ -2084,7 +2195,7 @@ curl -X POST localhost:3000/orders \
     </div>
   </div>
 
-  <div class="slide-num">13 / 13</div>
+  <div class="slide-num">14 / 14</div>
   <div class="slide-brand"><span>ZingyCommerce</span></div>
 </div>
 

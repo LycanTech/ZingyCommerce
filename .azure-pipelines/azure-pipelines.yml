@@ -98,7 +98,7 @@ stages:
               -backend-config="resource_group_name=$(TF_RESOURCE_GROUP)" \
               -backend-config="storage_account_name=$(TF_STORAGE_ACCOUNT)" \
               -backend-config="container_name=tfstate" \
-              -backend-config="key=ecommerce.terraform.tfstate" \
+              -backend-config="key=zcommerce.terraform.tfstate" \
               -input=false
 
       - bash: |
@@ -330,7 +330,7 @@ stages:
                     -backend-config="resource_group_name=$(TF_RESOURCE_GROUP)" \
                     -backend-config="storage_account_name=$(TF_STORAGE_ACCOUNT)" \
                     -backend-config="container_name=tfstate" \
-                    -backend-config="key=ecommerce.terraform.tfstate" \
+                    -backend-config="key=zcommerce.terraform.tfstate" \
                     -input=false
 
             - task: AzureCLI@2

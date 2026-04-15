@@ -1,0 +1,412 @@
+# ============================================================
+# GitHub Actions CI/CD Pipeline — GitOps Edition
+#
+# Mirrors the Azure DevOps pipeline exactly:
+#
+#   Stage 1 (ci):
+#     - Validates Terraform
+#     - Builds and pushes Docker images tagged with the commit SHA
+#     - Updates image.tag in helm/zingycommerce/values.yaml
+#     - Commits that change back to Git (ArgoCD GitOps trigger)
+#
+#   Stage 2 (terraform-apply):
+#     - Manual approval gate (configure in GitHub → Settings → Environments)
+#     - Runs terraform apply to create/update Azure infrastructure
+#
+#   Stage 3 (bootstrap-cluster):
+#     - Installs NGINX Ingress + cert-manager + Prometheus + Loki + ArgoCD
+#     - Applies ArgoCD Application manifest
+#     - ArgoCD handles ALL future Kubernetes deployments automatically
+#
+# Secrets to add in GitHub → Settings → Secrets and variables → Actions:
+#   AZURE_CREDENTIALS         — service principal JSON (az ad sp create-for-rbac --sdk-auth)
+#   ACR_LOGIN_SERVER          — e.g. zcommexcommerceacrdev.azurecr.io
+#   ACR_USERNAME              — ACR admin username
+#   ACR_PASSWORD              — ACR admin password
+#   TF_STORAGE_ACCOUNT        — zcommercetfstate
+#   TF_RESOURCE_GROUP         — zcommerce-tfstate-rg
+#   GIT_USER_EMAIL            — bot commit email (e.g. ci@chikwex.io)
+#   GIT_USER_NAME             — bot commit name (e.g. ZingyCommerce CI)
+#   ARGOCD_ADMIN_PASSWORD     — initial ArgoCD admin password
+# ============================================================
+
+name: ZingyCommerce CI/CD
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '*.md'
+      - 'ZingyCommerce-Project-Report.pdf'
+      - 'ZingyCommerce-Presentation.html'
+
+env:
+  TF_DIR: infrastructure
+  HELM_CHART_DIR: helm/zingycommerce
+  TF_VERSION: 1.8.5
+
+jobs:
+
+# ============================================================
+# JOB 1a: Terraform validate + plan
+# ============================================================
+  terraform-validate:
+    name: Terraform fmt / validate / plan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: terraform init
+        working-directory: ${{ env.TF_DIR }}
+        env:
+          ARM_CLIENT_ID:       ${{ fromJson(secrets.AZURE_CREDENTIALS).clientId }}
+          ARM_CLIENT_SECRET:   ${{ fromJson(secrets.AZURE_CREDENTIALS).clientSecret }}
+          ARM_TENANT_ID:       ${{ fromJson(secrets.AZURE_CREDENTIALS).tenantId }}
+          ARM_SUBSCRIPTION_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}
+        run: |
+          terraform init \
+            -backend-config="resource_group_name=${{ secrets.TF_RESOURCE_GROUP }}" \
+            -backend-config="storage_account_name=${{ secrets.TF_STORAGE_ACCOUNT }}" \
+            -backend-config="container_name=tfstate" \
+            -backend-config="key=zcommerce.terraform.tfstate" \
+            -input=false
+
+      - name: terraform fmt check
+        working-directory: ${{ env.TF_DIR }}
+        run: terraform fmt -check -recursive
+
+      - name: terraform validate
+        working-directory: ${{ env.TF_DIR }}
+        env:
+          ARM_CLIENT_ID:       ${{ fromJson(secrets.AZURE_CREDENTIALS).clientId }}
+          ARM_CLIENT_SECRET:   ${{ fromJson(secrets.AZURE_CREDENTIALS).clientSecret }}
+          ARM_TENANT_ID:       ${{ fromJson(secrets.AZURE_CREDENTIALS).tenantId }}
+          ARM_SUBSCRIPTION_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}
+        run: terraform validate
+
+      - name: terraform plan
+        working-directory: ${{ env.TF_DIR }}
+        env:
+          ARM_CLIENT_ID:       ${{ fromJson(secrets.AZURE_CREDENTIALS).clientId }}
+          ARM_CLIENT_SECRET:   ${{ fromJson(secrets.AZURE_CREDENTIALS).clientSecret }}
+          ARM_TENANT_ID:       ${{ fromJson(secrets.AZURE_CREDENTIALS).tenantId }}
+          ARM_SUBSCRIPTION_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}
+        run: |
+          terraform plan \
+            -out=tfplan \
+            -var="environment=prod" \
+            -var="prefix=zcommerce" \
+            -input=false
+
+      - name: Upload plan artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-plan
+          path: ${{ env.TF_DIR }}/tfplan
+
+# ============================================================
+# JOB 1b: Build Docker images + update Helm values.yaml
+# ============================================================
+  build-and-update-helm:
+    name: Build Images & Update Helm image.tag
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Login to ACR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ secrets.ACR_LOGIN_SERVER }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+
+      - name: Build & push user-service
+        uses: docker/build-push-action@v5
+        with:
+          context: services/user-service
+          file: services/user-service/Dockerfile
+          push: true
+          tags: |
+            ${{ secrets.ACR_LOGIN_SERVER }}/user-service:${{ github.sha }}
+            ${{ secrets.ACR_LOGIN_SERVER }}/user-service:latest
+
+      - name: Build & push product-service
+        uses: docker/build-push-action@v5
+        with:
+          context: services/product-service
+          file: services/product-service/Dockerfile
+          push: true
+          tags: |
+            ${{ secrets.ACR_LOGIN_SERVER }}/product-service:${{ github.sha }}
+            ${{ secrets.ACR_LOGIN_SERVER }}/product-service:latest
+
+      - name: Build & push order-service
+        uses: docker/build-push-action@v5
+        with:
+          context: services/order-service
+          file: services/order-service/Dockerfile
+          push: true
+          tags: |
+            ${{ secrets.ACR_LOGIN_SERVER }}/order-service:${{ github.sha }}
+            ${{ secrets.ACR_LOGIN_SERVER }}/order-service:latest
+
+      - name: Build & push api-gateway
+        uses: docker/build-push-action@v5
+        with:
+          context: services/api-gateway
+          file: services/api-gateway/Dockerfile
+          push: true
+          tags: |
+            ${{ secrets.ACR_LOGIN_SERVER }}/api-gateway:${{ github.sha }}
+            ${{ secrets.ACR_LOGIN_SERVER }}/api-gateway:latest
+
+      - name: Build & push frontend
+        uses: docker/build-push-action@v5
+        with:
+          context: frontend
+          file: frontend/Dockerfile
+          push: true
+          tags: |
+            ${{ secrets.ACR_LOGIN_SERVER }}/frontend:${{ github.sha }}
+            ${{ secrets.ACR_LOGIN_SERVER }}/frontend:latest
+
+      # GitOps trigger — update image.tag so ArgoCD rolls out new pods
+      - name: Update image.tag in Helm values.yaml
+        run: |
+          curl -fsSL https://github.com/mikefarah/yq/releases/download/v4.40.5/yq_linux_amd64 \
+            -o /usr/local/bin/yq && chmod +x /usr/local/bin/yq
+
+          CHART_VALUES="${{ env.HELM_CHART_DIR }}/values.yaml"
+          SHORT_SHA="${{ github.sha }}"
+
+          echo "Updating image.tag to: ${{ github.sha }}"
+          yq -i ".image.tag = \"${{ github.sha }}\"" "$CHART_VALUES"
+
+          git config user.email "${{ secrets.GIT_USER_EMAIL }}"
+          git config user.name "${{ secrets.GIT_USER_NAME }}"
+
+          if git diff --quiet "$CHART_VALUES"; then
+            echo "No change in image.tag — nothing to commit."
+          else
+            git add "$CHART_VALUES"
+            git commit -m "chore: update image.tag to ${SHORT_SHA:0:8} [skip ci]
+
+          Deployed by: GitHub Actions run ${{ github.run_id }}
+          Commit: ${{ github.sha }}
+          Branch: ${{ github.ref_name }}
+
+          ArgoCD will auto-sync this change to AKS."
+
+            git push origin main
+            echo "Pushed image.tag update. ArgoCD will sync within 3 minutes."
+          fi
+
+# ============================================================
+# JOB 2: Terraform Apply
+# Requires manual approval — configure in:
+#   GitHub → Settings → Environments → production → Required reviewers
+# ============================================================
+  terraform-apply:
+    name: Terraform Apply (infra)
+    runs-on: ubuntu-latest
+    needs: [terraform-validate, build-and-update-helm]
+    environment: production        # approval gate lives here
+    if: github.ref == 'refs/heads/main'
+
+    outputs:
+      aks_cluster_name:  ${{ steps.tf-outputs.outputs.aks_cluster_name }}
+      acr_login_server:  ${{ steps.tf-outputs.outputs.acr_login_server }}
+      aks_resource_group: ${{ steps.tf-outputs.outputs.aks_resource_group }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - name: Download plan artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: terraform-plan
+          path: ${{ env.TF_DIR }}
+
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: terraform init
+        working-directory: ${{ env.TF_DIR }}
+        env:
+          ARM_CLIENT_ID:       ${{ fromJson(secrets.AZURE_CREDENTIALS).clientId }}
+          ARM_CLIENT_SECRET:   ${{ fromJson(secrets.AZURE_CREDENTIALS).clientSecret }}
+          ARM_TENANT_ID:       ${{ fromJson(secrets.AZURE_CREDENTIALS).tenantId }}
+          ARM_SUBSCRIPTION_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}
+        run: |
+          terraform init \
+            -backend-config="resource_group_name=${{ secrets.TF_RESOURCE_GROUP }}" \
+            -backend-config="storage_account_name=${{ secrets.TF_STORAGE_ACCOUNT }}" \
+            -backend-config="container_name=tfstate" \
+            -backend-config="key=zcommerce.terraform.tfstate" \
+            -input=false
+
+      - name: terraform apply
+        id: tf-outputs
+        working-directory: ${{ env.TF_DIR }}
+        env:
+          ARM_CLIENT_ID:       ${{ fromJson(secrets.AZURE_CREDENTIALS).clientId }}
+          ARM_CLIENT_SECRET:   ${{ fromJson(secrets.AZURE_CREDENTIALS).clientSecret }}
+          ARM_TENANT_ID:       ${{ fromJson(secrets.AZURE_CREDENTIALS).tenantId }}
+          ARM_SUBSCRIPTION_ID: ${{ fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}
+        run: |
+          terraform apply -auto-approve tfplan
+
+          AKS_NAME=$(terraform output -raw aks_cluster_name)
+          ACR_SERVER=$(terraform output -raw acr_login_server)
+          RG_NAME=$(terraform output -raw resource_group_name)
+
+          echo "aks_cluster_name=$AKS_NAME"   >> $GITHUB_OUTPUT
+          echo "acr_login_server=$ACR_SERVER"  >> $GITHUB_OUTPUT
+          echo "aks_resource_group=$RG_NAME"   >> $GITHUB_OUTPUT
+
+# ============================================================
+# JOB 3: Bootstrap Kubernetes tooling & register ArgoCD app
+# ============================================================
+  bootstrap-cluster:
+    name: Bootstrap K8s Tooling & ArgoCD
+    runs-on: ubuntu-latest
+    needs: terraform-apply
+    environment: production
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Connect kubectl to AKS
+        run: |
+          az aks get-credentials \
+            --resource-group ${{ needs.terraform-apply.outputs.aks_resource_group }} \
+            --name ${{ needs.terraform-apply.outputs.aks_cluster_name }} \
+            --overwrite-existing
+          kubectl cluster-info
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+
+      - name: Install NGINX Ingress Controller
+        run: |
+          helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+          helm repo update
+          helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
+            --namespace ingress-nginx \
+            --create-namespace \
+            --set controller.replicaCount=2 \
+            --set controller.service.annotations."service\.beta\.kubernetes\.io/azure-load-balancer-health-probe-request-path"=/healthz \
+            --wait --timeout 5m
+          echo "NGINX Ingress public IP:"
+          kubectl get svc -n ingress-nginx ingress-nginx-controller
+
+      - name: Install cert-manager
+        run: |
+          helm repo add jetstack https://charts.jetstack.io
+          helm repo update
+          helm upgrade --install cert-manager jetstack/cert-manager \
+            --namespace cert-manager \
+            --create-namespace \
+            --set installCRDs=true \
+            --wait --timeout 5m
+
+          kubectl apply -f - <<'EOF'
+          apiVersion: cert-manager.io/v1
+          kind: ClusterIssuer
+          metadata:
+            name: letsencrypt-prod
+          spec:
+            acme:
+              server: https://acme-v02.api.letsencrypt.org/directory
+              email: admin@chikwex.io
+              privateKeySecretRef:
+                name: letsencrypt-prod-key
+              solvers:
+                - http01:
+                    ingress:
+                      class: nginx
+          EOF
+
+      - name: Install Prometheus + Grafana
+        run: |
+          helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+          helm repo update
+          helm upgrade --install kube-prometheus-stack prometheus-community/kube-prometheus-stack \
+            --namespace monitoring \
+            --create-namespace \
+            -f monitoring/prometheus/values.yaml \
+            --wait --timeout 10m
+
+      - name: Install Loki log aggregation
+        run: |
+          helm repo add grafana https://grafana.github.io/helm-charts
+          helm repo update
+          helm upgrade --install loki grafana/loki-stack \
+            --namespace monitoring \
+            -f monitoring/loki/values.yaml \
+            --wait --timeout 5m
+
+      - name: Install ArgoCD
+        run: |
+          kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
+          kubectl apply -n argocd \
+            -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+          kubectl apply -f argocd/install.yaml
+
+          echo "Waiting for ArgoCD server..."
+          kubectl rollout status deployment/argocd-server -n argocd --timeout=5m
+
+          echo "ArgoCD initial admin password:"
+          kubectl -n argocd get secret argocd-initial-admin-secret \
+            -o jsonpath="{.data.password}" | base64 -d
+          echo ""
+
+      - name: Register ArgoCD Application
+        run: |
+          kubectl wait --for=condition=Established \
+            crd/applications.argoproj.io \
+            crd/appprojects.argoproj.io \
+            --timeout=60s
+
+          kubectl apply -f argocd/appproject.yaml
+          kubectl apply -f argocd/application.yaml
+
+          echo "===== Bootstrap Complete! ====="
+          echo "ArgoCD will now sync ZingyCommerce from Git automatically."
+          echo "Every push to main triggers a new image build and ArgoCD rollout."
