@@ -51,7 +51,7 @@ stages:
             - task: AzureCLI@2
               displayName: 'Connect kubectl to AKS'
               inputs:
-                azureSubscription: $(AZURE_SERVICE_CONNECTION)
+                azureSubscription: azure-zcommerce
                 scriptType: bash
                 scriptLocation: inlineScript
                 inlineScript: |

@@ -32,6 +32,9 @@ trigger:
 variables:
   HELM_VALUES: helm/zingycommerce/values.yaml
   IMAGE_TAG: $(Build.SourceVersion)
+  # Override in Pipelines → Edit → Variables if your values differ
+  GIT_USER_EMAIL: pipeline@zingycommerce.com
+  GIT_USER_NAME: ZingyCommerce Pipeline
 
 stages:
 
@@ -75,24 +78,32 @@ stages:
       - task: AzureCLI@2
         displayName: 'Build & Push $(IMAGE_NAME)'
         inputs:
-          azureSubscription: $(AZURE_SERVICE_CONNECTION)
+          azureSubscription: azure-zcommerce
           scriptType: bash
           scriptLocation: inlineScript
+          addSpnToEnvironment: true
           inlineScript: |
             set -e
-            ACR_NAME=$(echo $(ACR_LOGIN_SERVER) | cut -d'.' -f1)
-            az acr login --name $ACR_NAME
+            # Use env vars to avoid bash $() collision with ADO $(VAR) syntax
+            ACR_SERVER="$(ACR_LOGIN_SERVER)"
+            ACR_NAME="${ACR_SERVER%%.*}"
+            IMAGE="$(IMAGE_NAME)"
+            TAG="$(IMAGE_TAG)"
+            CTX="$(BUILD_CONTEXT)"
+            DFILE="$(DOCKERFILE)"
+
+            az acr login --name "$ACR_NAME"
 
             docker build \
-              -t $(ACR_LOGIN_SERVER)/$(IMAGE_NAME):$(IMAGE_TAG) \
-              -t $(ACR_LOGIN_SERVER)/$(IMAGE_NAME):latest \
-              -f $(DOCKERFILE) \
-              $(BUILD_CONTEXT)
+              -t "${ACR_SERVER}/${IMAGE}:${TAG}" \
+              -t "${ACR_SERVER}/${IMAGE}:latest" \
+              -f "$DFILE" \
+              "$CTX"
 
-            docker push $(ACR_LOGIN_SERVER)/$(IMAGE_NAME):$(IMAGE_TAG)
-            docker push $(ACR_LOGIN_SERVER)/$(IMAGE_NAME):latest
+            docker push "${ACR_SERVER}/${IMAGE}:${TAG}"
+            docker push "${ACR_SERVER}/${IMAGE}:latest"
 
-            echo "Pushed $(ACR_LOGIN_SERVER)/$(IMAGE_NAME):$(IMAGE_TAG)"
+            echo "Pushed ${ACR_SERVER}/${IMAGE}:${TAG}"
 
 # ============================================================
 # STAGE 2: Update Helm image.tag → ArgoCD auto-deploys
@@ -121,16 +132,19 @@ stages:
       - bash: |
           set -e
           SHORT_SHA="${IMAGE_TAG:0:8}"
+          HELM_FILE="$(HELM_VALUES)"
+          ACR_SERVER="$(ACR_LOGIN_SERVER)"
 
-          yq -i ".image.tag = \"$IMAGE_TAG\"" "$(HELM_VALUES)"
+          yq -i ".image.tag = \"${IMAGE_TAG}\""         "$HELM_FILE"
+          yq -i ".global.acrLoginServer = \"${ACR_SERVER}\"" "$HELM_FILE"
 
           git config user.email "$(GIT_USER_EMAIL)"
           git config user.name  "$(GIT_USER_NAME)"
 
-          if git diff --quiet "$(HELM_VALUES)"; then
-            echo "image.tag already up to date — nothing to commit."
+          if git diff --quiet "$HELM_FILE"; then
+            echo "values.yaml already up to date — nothing to commit."
           else
-            git add "$(HELM_VALUES)"
+            git add "$HELM_FILE"
             git commit -m "chore: update image.tag to ${SHORT_SHA} [skip ci]"
             git push origin HEAD:main
             echo "Pushed. ArgoCD will sync within 3 minutes."

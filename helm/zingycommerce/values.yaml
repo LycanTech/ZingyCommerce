@@ -13,7 +13,7 @@
 global:
   # Azure Container Registry login server
   # Set this at deploy time: --set global.acrLoginServer=chikwex...azurecr.io
-  acrLoginServer: "chikwexcommerceacrdev.azurecr.io"
+  acrLoginServer: "zcommercecommerceacrdev.azurecr.io"
   namespace: zcommerce
   environment: dev
 
