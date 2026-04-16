@@ -262,15 +262,19 @@ ZingyCommerce/
 │   ├── acr.tf              # Azure Container Registry
 │   ├── aks.tf              # Azure Kubernetes Service
 │   ├── monitoring.tf       # Log Analytics Workspace
-│   ├── helm.tf             # NGINX Ingress, cert-manager, ArgoCD, Prometheus via Terraform
+│   ├── helm.tf             # Documents why K8s tooling is in bootstrap, not Terraform
 │   └── terraform.tfvars.example
 │
 ├── k8s/                    # Raw Kubernetes manifests (reference / fallback)
 ├── .azure-pipelines/
-│   └── azure-pipelines.yml # 3-stage CI/CD pipeline (Azure DevOps)
+│   ├── app-pipeline.yml    # Builds images + GitOps tag update (Azure DevOps)
+│   ├── infra-pipeline.yml  # Terraform plan → approve → apply (Azure DevOps)
+│   └── bootstrap-pipeline.yml  # One-time cluster setup, manual trigger (Azure DevOps)
 ├── .github/
 │   └── workflows/
-│       └── ci-cd.yml       # 3-stage CI/CD pipeline (GitHub Actions)
+│       ├── app.yml         # Builds images + GitOps tag update (GitHub Actions)
+│       ├── infra.yml       # Terraform plan → approve → apply (GitHub Actions)
+│       └── bootstrap.yml   # One-time cluster setup, manual trigger (GitHub Actions)
 ├── docker-compose.yml      # Local development
 ├── generate-pdf.js         # Script to regenerate the PDF report
 └── ZingyCommerce-Project-Report.pdf
@@ -362,15 +366,14 @@ terraform apply -var="prefix=zcommerce" -var="environment=dev"
 
 Terraform creates:
 
-- Resource Group: `zcommerce-ecommerce-dev-rg`
-- Container Registry (ACR): `zcommercecommerceacrdev`
-- Kubernetes Cluster (AKS): `zcommerce-aks-dev`
-- Log Analytics Workspace: `zcommerce-logs-dev`
-- NGINX Ingress Controller (via Helm)
-- cert-manager (via Helm)
-- Prometheus + Grafana (via Helm)
-- Loki (via Helm)
-- ArgoCD (via Helm)
+| Resource                  | Name                                               |
+|---------------------------|----------------------------------------------------|
+| Resource Group            | `zcommerce-ecommerce-dev-rg`                       |
+| Container Registry (ACR)  | `zcommerceecommerceacrdev`                         |
+| Kubernetes Cluster (AKS)  | `zcommerce-aks-dev` (Managed OS disk, Standard_B2s)|
+| Log Analytics Workspace   | `zcommerce-logs-dev`                               |
+
+> **Note:** NGINX Ingress, cert-manager, Prometheus, Loki, and ArgoCD are **not** managed by Terraform. They are installed by the bootstrap pipeline after `terraform apply` completes (see Part D).
 
 ---
 
@@ -423,7 +426,7 @@ docker push ${ACR_NAME}/frontend:latest
 ```bash
 # Update the ACR login server in values.yaml
 # Edit helm/zingycommerce/values.yaml:
-#   global.acrLoginServer: "chikwexcommerceacrdev.azurecr.io"
+#   global.acrLoginServer: "zcommerceecommerceacrdev.azurecr.io"
 
 # Deploy dev environment
 helm upgrade --install zingycommerce ./helm/zingycommerce \
@@ -462,14 +465,14 @@ kubectl apply -f argocd/application.yaml
 kubectl get svc -n ingress-nginx ingress-nginx-controller
 
 # Add a DNS A record at your domain registrar:
-#   zingycommerce.chikwex.io  →  <EXTERNAL-IP>
-#   argocd.chikwex.io         →  <EXTERNAL-IP>
-#   grafana.chikwex.io        →  <EXTERNAL-IP>
+#   zingycommerce.yourdomain.com  →  <EXTERNAL-IP>
+#   argocd.yourdomain.com         →  <EXTERNAL-IP>
+#   grafana.yourdomain.com        →  <EXTERNAL-IP>
 
 # Once DNS propagates, visit:
-#   https://zingycommerce.chikwex.io   ← your shop
-#   https://argocd.chikwex.io          ← ArgoCD UI
-#   https://grafana.chikwex.io         ← metrics dashboards
+#   https://zingycommerce.yourdomain.com   ← your shop
+#   https://argocd.yourdomain.com          ← ArgoCD UI
+#   https://grafana.yourdomain.com         ← metrics dashboards
 ```
 
 ---
@@ -531,31 +534,31 @@ git push github main  # triggers GitHub Actions
 
 ### Pipeline overview
 
-The project ships with **two identical pipelines** — one for each remote:
+Each concern has its own pipeline file, triggered by path. Only the changed layer runs:
 
-| Pipeline        | File                                   | Remote          |
-|-----------------|----------------------------------------|-----------------|
-| Azure DevOps    | `.azure-pipelines/azure-pipelines.yml` | `azure` remote  |
-| GitHub Actions  | `.github/workflows/ci-cd.yml`          | `github` remote |
+| Pipeline      | Azure DevOps file           | GitHub Actions file | Triggers on                             |
+|---------------|-----------------------------|---------------------|-----------------------------------------|
+| **App**       | `app-pipeline.yml`          | `app.yml`           | `services/**`, `frontend/**`, `helm/**` |
+| **Infra**     | `infra-pipeline.yml`        | `infra.yml`         | `infrastructure/**`                     |
+| **Bootstrap** | `bootstrap-pipeline.yml`    | `bootstrap.yml`     | Manual only (run once after AKS)        |
 
-Both run the same 3 stages:
+```text
+App pipeline (every code push):
+  Stage 1 — Build: 5 Docker images built in parallel (matrix) → pushed to ACR
+  Stage 2 — Deploy: image.tag updated in helm/values.yaml → committed to Git
+             ArgoCD detects the commit → rolls out new pods automatically
 
-```
-Stage 1: CI (parallel jobs)
-  ├── Job A: Terraform fmt + validate + plan (safety check)
-  └── Job B: Build 5 Docker images → push to ACR
-             → update image.tag in values.yaml → commit to Git ← GitOps trigger!
+Infra pipeline (only when infrastructure/ changes):
+  Stage 1 — Plan: terraform fmt + validate + plan → artifact uploaded
+  Stage 2 — Apply: [manual approval] terraform apply → AKS, ACR, Log Analytics
 
-Stage 2: Terraform Apply  [requires manual approval]
-  └── terraform apply → creates/updates AKS, ACR, etc.
-
-Stage 3: Bootstrap Cluster  [first run only]
+Bootstrap pipeline (manual, run once after first terraform apply):
   ├── Install NGINX Ingress Controller
-  ├── Install cert-manager + ClusterIssuer (Let's Encrypt)
+  ├── Install cert-manager + Let's Encrypt ClusterIssuer
   ├── Install Prometheus + Grafana
   ├── Install Loki
   ├── Install ArgoCD
-  └── Register ArgoCD Application → ArgoCD takes over from here!
+  └── Register ArgoCD Application → ArgoCD owns all future deployments
 ```
 
 ---
@@ -572,32 +575,34 @@ Stage 3: Bootstrap Cluster  [first run only]
 
 In **Project Settings → Service Connections**:
 
-| Name               | Type                    | Purpose                  |
-|--------------------|-------------------------|--------------------------|
-| `azure-zcommerce`  | Azure Resource Manager  | Terraform + AKS access   |
-| `acr-zcommerce`    | Docker Registry (ACR)   | Push Docker images       |
+| Name              | Type                   | Purpose                      |
+|-------------------|------------------------|------------------------------|
+| `azure-zcommerce` | Azure Resource Manager | Terraform + AKS + ACR login  |
+
+> No Docker Registry service connection needed — pipelines use `az acr login` with the Azure service connection.
 
 #### Step 3: Set pipeline variables
 
-In **Pipelines → Variables**:
+Add these to each pipeline (Pipelines → select pipeline → Edit → Variables):
 
-| Variable | Value | Secret? |
-|----------|-------|---------|
-| `AZURE_SERVICE_CONNECTION` | `azure-zcommerce` | No |
-| `ACR_SERVICE_CONNECTION` | `acr-zcommerce` | No |
-| `TF_STORAGE_ACCOUNT` | `zcommercetfstate` | No |
-| `TF_RESOURCE_GROUP` | `zcommerce-tfstate-rg` | No |
-| `GIT_USER_EMAIL` | `ci@chikwex.io` | No |
-| `GIT_USER_NAME` | `ZingyCommerce CI` | No |
-| `ARGOCD_ADMIN_PASSWORD` | `<your-password>` | **Yes** |
+| Variable                   | Value                                   | Secret? |
+|----------------------------|-----------------------------------------|---------|
+| `AZURE_SERVICE_CONNECTION` | `azure-zcommerce`                       | No      |
+| `ACR_LOGIN_SERVER`         | `zcommerceecommerceacrdev.azurecr.io`   | No      |
+| `TF_STORAGE_ACCOUNT`       | `zcommercetfstate`                      | No      |
+| `TF_RESOURCE_GROUP`        | `zcommerce-tfstate-rg`                  | No      |
+| `GIT_USER_EMAIL`           | e.g. `ci@yourdomain.com`                | No      |
+| `GIT_USER_NAME`            | `ZingyCommerce CI`                      | No      |
 
-#### Step 4: Create the pipeline
+#### Step 4: Create the three pipelines
 
-1. Go to **Pipelines → New Pipeline**
-2. Select your repo
-3. Select **Existing Azure Pipelines YAML file**
-4. Choose `.azure-pipelines/azure-pipelines.yml`
-5. Click **Run**
+Repeat for each YAML file — **Pipelines → New Pipeline → Existing Azure Pipelines YAML file**:
+
+| Pipeline      | YAML file                                    |
+|---------------|----------------------------------------------|
+| App           | `.azure-pipelines/app-pipeline.yml`          |
+| Infra         | `.azure-pipelines/infra-pipeline.yml`        |
+| Bootstrap     | `.azure-pipelines/bootstrap-pipeline.yml`    |
 
 ---
 
@@ -607,16 +612,16 @@ In **Pipelines → Variables**:
 
 In GitHub → **Settings → Secrets and variables → Actions**:
 
-| Secret                | Value                                            |
-|-----------------------|--------------------------------------------------|
-| `AZURE_CREDENTIALS`   | Output of `az ad sp create-for-rbac --sdk-auth`  |
-| `ACR_LOGIN_SERVER`    | e.g. `zcommercecommerceacrdev.azurecr.io`        |
-| `ACR_USERNAME`        | ACR admin username                               |
-| `ACR_PASSWORD`        | ACR admin password                               |
-| `TF_STORAGE_ACCOUNT`  | `zcommercetfstate`                               |
-| `TF_RESOURCE_GROUP`   | `zcommerce-tfstate-rg`                           |
-| `GIT_USER_EMAIL`      | `ci@chikwex.io`                                  |
-| `GIT_USER_NAME`       | `ZingyCommerce CI`                               |
+| Secret               | Value                                                                            |
+|----------------------|----------------------------------------------------------------------------------|
+| `AZURE_CREDENTIALS`  | Full JSON from `az ad sp create-for-rbac --output json`                          |
+| `ACR_LOGIN_SERVER`   | `zcommerceecommerceacrdev.azurecr.io` (from `terraform output acr_login_server`) |
+| `TF_STORAGE_ACCOUNT` | `zcommercetfstate`                                                               |
+| `TF_RESOURCE_GROUP`  | `zcommerce-tfstate-rg`                                                           |
+| `GIT_USER_EMAIL`     | e.g. `ci@yourdomain.com`                                                         |
+| `GIT_USER_NAME`      | `ZingyCommerce CI`                                                               |
+
+> `ACR_USERNAME` and `ACR_PASSWORD` are **not needed** — ACR admin is disabled. Pipelines authenticate via `az acr login` using the service principal in `AZURE_CREDENTIALS`.
 
 #### Step 2: Create the approval environment
 
@@ -626,7 +631,9 @@ In GitHub → **Settings → Environments → New environment**: name it `produc
 
 ```bash
 git push github main
-# Pipeline starts automatically at .github/workflows/ci-cd.yml
+# app.yml triggers automatically for service/frontend/helm changes
+# infra.yml triggers automatically for infrastructure/ changes
+# bootstrap.yml is manual — run once from Actions → Bootstrap Cluster
 ```
 
 ---
@@ -638,7 +645,7 @@ After Terraform + bootstrap, your monitoring stack is live.
 ### Access Grafana
 
 ```
-URL: https://grafana.chikwex.io
+URL: https://grafana.yourdomain.com
 Username: admin
 Password: (what you set in monitoring/prometheus/values.yaml)
 ```
@@ -681,7 +688,7 @@ Edit `monitoring/prometheus/values.yaml` to add Alertmanager routes (Slack, Page
 ### Quick API tests (curl)
 
 ```bash
-BASE="https://zingycommerce.chikwex.io/api"
+BASE="https://zingycommerce.yourdomain.com/api"
 
 # Health checks
 curl $BASE/users/health
@@ -809,7 +816,7 @@ kubectl describe certificate zingycommerce-tls -n zcommerce
 ### Terraform plan shows unexpected changes
 ```bash
 # Refresh state to sync Terraform's view with actual Azure resources
-terraform refresh -var="prefix=chikwex" -var="environment=dev"
+terraform refresh -var="prefix=zcommerce" -var="environment=dev"
 ```
 
 ---

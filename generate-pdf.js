@@ -137,7 +137,7 @@ const stack = [
   ['Helm',        'Chart with _helpers.tpl'],
   ['GitOps',      'ArgoCD Application CRD'],
   ['IaC',         'Terraform (azurerm ~3.100)'],
-  ['Pipeline',    'Azure DevOps + GitHub Actions'],
+  ['Pipeline',    'App / Infra / Bootstrap (×2 platforms)'],
   ['Metrics',     'Prometheus + Grafana'],
   ['Logs',        'Loki + Promtail'],
   ['TLS',         'cert-manager + Let\'s Encrypt'],
@@ -434,26 +434,25 @@ pageNum(6, 13);
 // ── PAGE 7 — CI/CD Pipeline ───────────────────────────────────────────────────
 doc.addPage();
 bg();
-sectionTitle('CI/CD Pipelines — Azure DevOps + GitHub Actions', '3-stage pipeline: validate → provision → bootstrap (identical on both remotes)');
+sectionTitle('CI/CD Pipelines — Azure DevOps + GitHub Actions', 'Three focused pipelines: each concern triggers independently');
 
 const stages = [
   {
-    stage: 'Stage 1: CI', col: C.brand,
+    stage: 'App Pipeline', col: C.brand,
     jobs: [
-      { title: 'TerraformValidate (parallel)', steps: ['terraform init', 'terraform fmt --check', 'terraform validate', 'terraform plan -out=tfplan', 'publish plan artifact'] },
-      { title: 'BuildAndUpdateHelm (parallel)', steps: ['docker build & push 5 images to ACR (tag = git SHA)', 'Install yq (YAML processor)', 'yq update image.tag in values.yaml', 'git commit + push [skip ci]', 'ArgoCD detects new tag → rolls out pods'] },
+      { title: 'Triggers: services/**, frontend/**, helm/**', steps: ['Stage 1 — Build (parallel matrix)', 'az acr login via service principal (no admin creds)', 'Build & push all 5 images simultaneously', 'Each image tagged: commit SHA + latest', 'Stage 2 — Deploy (GitOps trigger)', 'yq update image.tag in helm/values.yaml', 'git commit + push [skip ci] → ArgoCD syncs'] },
     ],
   },
   {
-    stage: 'Stage 2: TerraformApply', col: C.accent,
+    stage: 'Infra Pipeline', col: C.accent,
     jobs: [
-      { title: 'ApplyInfrastructure [manual approval]', steps: ['download plan artifact', 'terraform init', 'terraform apply -auto-approve tfplan', 'export AKS name + ACR URL as output vars'] },
+      { title: 'Triggers: infrastructure/** only', steps: ['Stage 1 — Plan (auto)', 'terraform fmt / validate / plan', 'Upload plan artifact', 'Stage 2 — Apply [manual approval ✋]', 'terraform apply → ACR, AKS (Managed OS disk), Log Analytics'] },
     ],
   },
   {
-    stage: 'Stage 3: BootstrapCluster', col: C.success,
+    stage: 'Bootstrap Pipeline', col: C.success,
     jobs: [
-      { title: 'Bootstrap [first-run setup]', steps: ['helm install ingress-nginx', 'helm install cert-manager + ClusterIssuer', 'helm install kube-prometheus-stack', 'helm install loki-stack', 'kubectl apply argocd/install.yaml', 'kubectl apply argocd/appproject.yaml', 'kubectl apply argocd/application.yaml ← ArgoCD live!'] },
+      { title: 'Trigger: manual only (run once after AKS)', steps: ['az aks get-credentials', 'helm install ingress-nginx', 'helm install cert-manager + ClusterIssuer', 'helm install kube-prometheus-stack + loki', 'kubectl apply ArgoCD + appproject + application', 'ArgoCD live — owns all future deployments'] },
     ],
   },
 ];
@@ -662,7 +661,7 @@ sectionTitle('Azure Resources & Security', 'All resources use zcommerce prefix f
 
 const azureResources = [
   { name: 'AKS (Azure Kubernetes Service)', id: 'zcommerce-aks-<env>', col: C.brand,
-    notes: 'SystemAssigned identity, auto-scaling 1–4 nodes, Standard_B2s (dev) / Standard_D2s_v3 (prod), OMS agent for Log Analytics.' },
+    notes: 'SystemAssigned identity, auto-scaling 1–4 nodes, Standard_B2s with Managed OS disk 30 GB (Ephemeral incompatible with B2s cache size). OMS agent for Log Analytics.' },
   { name: 'ACR (Azure Container Registry)', id: 'zcommercecommerceacr<env>', col: C.brand2,
     notes: 'Basic SKU (~$5/mo). Stores all 5 Docker images. AcrPull role assigned to AKS kubelet identity (no passwords needed).' },
   { name: 'Log Analytics Workspace', id: 'zcommerce-logs-<env>', col: C.info,
@@ -704,8 +703,8 @@ const checks = [
   { label: 'ArgoCD GitOps (auto-deploy on git push)',done: true  },
   { label: 'ArgoCD AppProject RBAC',                 done: true  },
   { label: 'Terraform Infrastructure as Code',       done: true  },
-  { label: 'Azure DevOps 3-stage pipeline',         done: true  },
-  { label: 'GitHub Actions 3-stage pipeline',       done: true  },
+  { label: 'Azure DevOps — app / infra / bootstrap pipelines', done: true  },
+  { label: 'GitHub Actions — app / infra / bootstrap pipelines', done: true  },
   { label: 'NGINX Ingress (single public IP)',       done: true  },
   { label: 'TLS/HTTPS (cert-manager + Let\'s Encrypt)',done:true },
   { label: 'Prometheus metrics scraping',            done: true  },
