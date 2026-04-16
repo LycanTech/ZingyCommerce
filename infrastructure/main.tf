@@ -37,14 +37,6 @@ terraform {
       source  = "hashicorp/azuread"
       version = "~> 2.47"
     }
-    helm = {
-      source  = "hashicorp/helm"
-      version = "~> 2.13"
-    }
-    kubectl = {
-      source  = "gavinbunney/kubectl"
-      version = "~> 1.14"
-    }
   }
 
   # ---- Remote State Backend ----
