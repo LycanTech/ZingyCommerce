@@ -7,9 +7,9 @@
 terraform.tfvars
 *.auto.tfvars
 
-# Terraform working directory
+# Terraform working directory (downloaded provider binaries — do not commit)
 .terraform/
-.terraform.lock.hcl
+# .terraform.lock.hcl is intentionally tracked — pins provider versions for reproducible runs
 
 # Crash logs
 crash.log
