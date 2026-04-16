@@ -18,19 +18,7 @@
 # ── Helm Provider ──────────────────────────────────────────
 # The helm provider talks to your AKS cluster using the
 # same credentials as the azurerm provider.
-terraform {
-  required_providers {
-    helm = {
-      source  = "hashicorp/helm"
-      version = "~> 2.13"
-    }
-    kubectl = {
-      source  = "gavinbunney/kubectl"
-      version = "~> 1.14"
-    }
-  }
-}
-
+# Provider version is declared in main.tf required_providers.
 provider "helm" {
   kubernetes {
     host                   = azurerm_kubernetes_cluster.main.kube_config.0.host
@@ -57,7 +45,7 @@ resource "helm_release" "ingress_nginx" {
   chart            = "ingress-nginx"
   namespace        = "ingress-nginx"
   create_namespace = true
-  version          = "4.10.1"   # pin for reproducibility
+  version          = "4.10.1" # pin for reproducibility
 
   set {
     name  = "controller.replicaCount"
