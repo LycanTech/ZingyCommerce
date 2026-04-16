@@ -29,13 +29,13 @@ variable "environment" {
 }
 
 variable "prefix" {
-  description = "Short prefix added to all resource names (e.g. your initials or project code)"
+  description = "Prefix added to all resource names (e.g. your initials or project code)"
   type        = string
-  default     = "chikwex"
+  default     = "zcommerce"
 
   validation {
-    condition     = length(var.prefix) >= 3 && length(var.prefix) <= 8
-    error_message = "prefix must be between 3 and 8 characters"
+    condition     = length(var.prefix) >= 3 && length(var.prefix) <= 12
+    error_message = "prefix must be between 3 and 12 characters"
   }
 }
 
