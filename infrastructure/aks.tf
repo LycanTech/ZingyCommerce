@@ -30,10 +30,13 @@ resource "azurerm_kubernetes_cluster" "main" {
     # based on how many pods are scheduled
     enable_auto_scaling = true
     min_count           = 1
-    max_count           = var.node_count + 2   # e.g. 2 → can scale to 4
+    max_count           = var.node_count + 2 # e.g. 2 → can scale to 4
 
-    # Use "Ephemeral OS" disk for faster node startup
-    os_disk_type = "Ephemeral"
+    # Managed OS disk — compatible with all VM sizes including Standard_B2s.
+    # Ephemeral requires the VM cache to be >= OS disk size (128 GB),
+    # which Standard_B2s (32 GB cache) cannot satisfy.
+    os_disk_type    = "Managed"
+    os_disk_size_gb = 30
 
     # Each node needs enough IPs for its pods
     # /24 gives us 251 usable IPs — plenty for dev
@@ -51,8 +54,8 @@ resource "azurerm_kubernetes_cluster" "main" {
 
   # ---- Network ----
   network_profile {
-    network_plugin    = "azure"      # Azure CNI: pods get real VNet IPs
-    load_balancer_sku = "standard"   # Standard required for production features
+    network_plugin    = "azure"    # Azure CNI: pods get real VNet IPs
+    load_balancer_sku = "standard" # Standard required for production features
   }
 
   # ---- Monitoring ----
