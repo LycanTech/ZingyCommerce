@@ -64,14 +64,14 @@ resource "azurerm_kubernetes_cluster" "main" {
     log_analytics_workspace_id = azurerm_log_analytics_workspace.main.id
   }
 
+  # ---- OIDC Issuer ----
+  # Required by AKS workload identity. Once enabled it cannot be disabled,
+  # so we declare it explicitly to match the cluster's actual state.
+  oidc_issuer_enabled = true
+
   # ---- RBAC ----
   # Role-Based Access Control: controls who can do what in the cluster
   role_based_access_control_enabled = true
-
-  # ---- Automatic Upgrades ----
-  # "patch" = automatically apply patch versions (e.g. 1.28.3 → 1.28.5)
-  # Change to "stable" for production
-  automatic_channel_upgrade = "patch"
 
   tags = azurerm_resource_group.main.tags
 }
