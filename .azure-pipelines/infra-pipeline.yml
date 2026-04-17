@@ -27,8 +27,11 @@ variables:
   # NOTE: azureSubscription in AzureCLI@2 tasks must be a literal — ADO resolves
   # connectedService inputs at compile time, before variables are expanded.
   # If you rename the service connection, update the azureSubscription fields directly.
-  TF_STORAGE_ACCOUNT: ''                     # REQUIRED — must be overridden in Pipeline Variables/Library
-  TF_RESOURCE_GROUP: ''                      # REQUIRED — must be overridden in Pipeline Variables/Library
+  #
+  # TF_STORAGE_ACCOUNT and TF_RESOURCE_GROUP are intentionally NOT defined here.
+  # Set them in Pipelines → Edit → Variables (or a Library variable group).
+  # YAML variables override pipeline UI variables with the same name, so
+  # defining them here (even as '') would shadow the values you set in the UI.
 
 stages:
 
