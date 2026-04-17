@@ -119,7 +119,7 @@ stages:
                   --namespace monitoring \
                   --create-namespace \
                   -f monitoring/prometheus/values.yaml \
-                  --wait --timeout 10m
+                  --wait --timeout 20m
               displayName: 'Install Prometheus + Grafana'
 
             - bash: |
