@@ -70,10 +70,12 @@ grafana:
   #     -n monitoring --from-literal=admin-password=<strong-password>
   adminPassword: "chikwex-grafana-admin"  # change me!
 
-  # Persistent storage for dashboards and settings
+  # Persistence disabled for dev — dashboards are loaded from ConfigMaps below,
+  # so nothing is lost if the Grafana pod restarts.
+  # Enabling this provisions an Azure Disk PVC which adds ~8 min to bootstrap.
+  # Re-enable for prod: persistence.enabled: true, size: 5Gi
   persistence:
-    enabled: true
-    size: 5Gi
+    enabled: false
 
   # Expose Grafana at https://grafana.chikwex.io via NGINX Ingress
   ingress:
@@ -117,16 +119,10 @@ grafana:
           access: proxy
 
 # ── Alertmanager ─────────────────────────────────────────────────────────────
+# Disabled for dev — reduces bootstrap time significantly (no PVC provisioning).
+# Re-enable for prod and configure Slack/PagerDuty routes.
 alertmanager:
-  enabled: true
-  alertmanagerSpec:
-    storage:
-      volumeClaimTemplate:
-        spec:
-          accessModes: ["ReadWriteOnce"]
-          resources:
-            requests:
-              storage: 2Gi
+  enabled: false
 
 # ── Node Exporter ─────────────────────────────────────────────────────────────
 # Collects CPU, memory, disk metrics from each AKS node

@@ -389,13 +389,12 @@ bg();
 sectionTitle('Terraform — Infrastructure as Code', 'Every Azure resource described in .tf files. `terraform apply` creates everything.');
 
 const tfFiles = [
-  { file: 'main.tf',      desc: 'azurerm provider, resource group, remote state backend (Azure Blob)', col: C.brand },
-  { file: 'variables.tf', desc: 'prefix="zcommerce", environment, location, node_count, node_vm_size, acr_sku', col: C.brand2 },
-  { file: 'acr.tf',       desc: 'Azure Container Registry + AcrPull role for AKS kubelet identity', col: C.accent },
-  { file: 'aks.tf',       desc: 'AKS cluster (SystemAssigned identity, auto-scaling node pool, OMS agent)', col: C.success },
-  { file: 'monitoring.tf',desc: 'Log Analytics Workspace, AKS diagnostic settings (API server + audit logs)', col: C.info },
-  { file: 'helm.tf',      desc: 'Helm provider: installs NGINX Ingress, cert-manager, Prometheus stack, Loki, ArgoCD', col: C.brand },
-  { file: 'outputs.tf',   desc: 'acr_login_server, aks_cluster_name, resource_group_name, connect command', col: C.muted },
+  { file: 'main.tf',                    desc: 'Provider, backend, resource group, module calls (monitoring→aks→acr) + moved blocks for state migration', col: C.brand },
+  { file: 'variables.tf',               desc: 'prefix, environment, location, node_count, node_vm_size (Standard_D2s_v3 default), acr_sku', col: C.brand2 },
+  { file: 'outputs.tf',                 desc: 'acr_login_server, aks_cluster_name, resource_group_name, connect command, acr_push_example', col: C.muted },
+  { file: 'modules/acr/main.tf',        desc: 'Azure Container Registry (admin_enabled=false) + AcrPull role assigned to AKS kubelet identity', col: C.accent },
+  { file: 'modules/aks/main.tf',        desc: 'AKS cluster (SystemAssigned identity, Managed OS disk, Standard_D2s_v3) + diagnostic settings', col: C.success },
+  { file: 'modules/monitoring/main.tf', desc: 'Log Analytics Workspace — receives AKS control-plane logs (API server, scheduler, audit)', col: C.info },
 ];
 
 tfFiles.forEach(({ file, desc, col }, i) => {
@@ -440,19 +439,19 @@ const stages = [
   {
     stage: 'App Pipeline', col: C.brand,
     jobs: [
-      { title: 'Triggers: services/**, frontend/**, helm/**', steps: ['Stage 1 — Build (parallel matrix)', 'az acr login via service principal (no admin creds)', 'Build & push all 5 images simultaneously', 'Each image tagged: commit SHA + latest', 'Stage 2 — Deploy (GitOps trigger)', 'yq update image.tag in helm/values.yaml', 'git commit + push [skip ci] → ArgoCD syncs'] },
+      { title: 'Triggers: services/**, frontend/**, helm/**', steps: ['Stage 1 — Build (parallel matrix)', 'az acr login via service principal (no admin creds)', 'Build & push all 5 images simultaneously', 'Each image tagged: commit SHA + latest', 'Stage 2 — Deploy (GitOps trigger)', 'yq update image.tag in helm/values.yaml', 'git commit + push [skip ci] → ArgoCD syncs', 'UI var required: ACR_LOGIN_SERVER'] },
     ],
   },
   {
     stage: 'Infra Pipeline', col: C.accent,
     jobs: [
-      { title: 'Triggers: infrastructure/** only', steps: ['Stage 1 — Plan (auto)', 'terraform fmt / validate / plan', 'Upload plan artifact', 'Stage 2 — Apply [manual approval ✋]', 'terraform apply → ACR, AKS (Managed OS disk), Log Analytics'] },
+      { title: 'Triggers: infrastructure/** only', steps: ['Stage 1 — Plan (auto)', 'terraform fmt / validate / plan', 'Upload plan artifact', 'Stage 2 — Apply [manual approval ✋]', 'terraform apply → modules/acr, modules/aks, modules/monitoring', 'AKS node: Standard_D2s_v3 (2 vCPU, 8 GB)', 'UI vars required: TF_STORAGE_ACCOUNT, TF_RESOURCE_GROUP'] },
     ],
   },
   {
     stage: 'Bootstrap Pipeline', col: C.success,
     jobs: [
-      { title: 'Trigger: manual only (run once after AKS)', steps: ['az aks get-credentials', 'helm install ingress-nginx', 'helm install cert-manager + ClusterIssuer', 'helm install kube-prometheus-stack + loki', 'kubectl apply ArgoCD + appproject + application', 'ArgoCD live — owns all future deployments'] },
+      { title: 'Trigger: manual only (run once after AKS)', steps: ['az aks get-credentials', 'helm install ingress-nginx', 'helm install cert-manager + ClusterIssuer', 'helm install kube-prometheus-stack (--timeout 20m)', 'helm install loki', 'kubectl apply ArgoCD v2.12.3 + appproject + application', 'ArgoCD live — owns all future deployments'] },
     ],
   },
 ];
@@ -661,7 +660,7 @@ sectionTitle('Azure Resources & Security', 'All resources use zcommerce prefix f
 
 const azureResources = [
   { name: 'AKS (Azure Kubernetes Service)', id: 'zcommerce-aks-<env>', col: C.brand,
-    notes: 'SystemAssigned identity, auto-scaling 1–4 nodes, Standard_B2s with Managed OS disk 30 GB (Ephemeral incompatible with B2s cache size). OMS agent for Log Analytics.' },
+    notes: 'SystemAssigned identity, auto-scaling 1–4 nodes, Standard_D2s_v3 (2 vCPU, 8 GB RAM) with Managed OS disk. Upgraded from Standard_B2s — kube-prometheus-stack requires ≥8 GB RAM. OMS agent for Log Analytics.' },
   { name: 'ACR (Azure Container Registry)', id: 'zcommercecommerceacr<env>', col: C.brand2,
     notes: 'Basic SKU (~$5/mo). Stores all 5 Docker images. AcrPull role assigned to AKS kubelet identity (no passwords needed).' },
   { name: 'Log Analytics Workspace', id: 'zcommerce-logs-<env>', col: C.info,

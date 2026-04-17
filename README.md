@@ -255,15 +255,24 @@ ZingyCommerce/
 │   └── loki/
 │       └── values.yaml     # Loki log aggregation values
 │
-├── infrastructure/         # Terraform — Azure IaC
-│   ├── main.tf             # Provider, resource group, backend
+├── infrastructure/         # Terraform — Azure IaC (modular structure)
+│   ├── main.tf             # Provider, backend, resource group, module calls + moved blocks
 │   ├── variables.tf        # All input variables
 │   ├── outputs.tf          # Values printed after apply
-│   ├── acr.tf              # Azure Container Registry
-│   ├── aks.tf              # Azure Kubernetes Service
-│   ├── monitoring.tf       # Log Analytics Workspace
-│   ├── helm.tf             # Documents why K8s tooling is in bootstrap, not Terraform
-│   └── terraform.tfvars.example
+│   ├── terraform.tfvars.example
+│   └── modules/
+│       ├── acr/            # Azure Container Registry + AcrPull role
+│       │   ├── main.tf
+│       │   ├── variables.tf
+│       │   └── outputs.tf
+│       ├── aks/            # AKS cluster + diagnostic settings
+│       │   ├── main.tf
+│       │   ├── variables.tf
+│       │   └── outputs.tf
+│       └── monitoring/     # Log Analytics Workspace
+│           ├── main.tf
+│           ├── variables.tf
+│           └── outputs.tf
 │
 ├── k8s/                    # Raw Kubernetes manifests (reference / fallback)
 ├── .azure-pipelines/
@@ -366,13 +375,15 @@ terraform apply -var="prefix=zcommerce" -var="environment=dev"
 
 Terraform creates:
 
-| Resource                  | Name                                               |
-|---------------------------|----------------------------------------------------|
-| Resource Group            | `zcommerce-ecommerce-dev-rg`                       |
-| Container Registry (ACR)  | `zcommerceecommerceacrdev`                         |
-| Kubernetes Cluster (AKS)  | `zcommerce-aks-dev` (Managed OS disk, Standard_B2s)|
-| Log Analytics Workspace   | `zcommerce-logs-dev`                               |
+| Resource                 | Name                                                                          |
+|--------------------------|-------------------------------------------------------------------------------|
+| Resource Group           | `zcommerce-ecommerce-dev-rg`                                                  |
+| Container Registry (ACR) | `zcommerceecommerceacrdev`                                                    |
+| Kubernetes Cluster (AKS) | `zcommerce-aks-dev` (Managed OS disk, Standard_D2s_v3 — 2 vCPU, 8 GB RAM)   |
+| Log Analytics Workspace  | `zcommerce-logs-dev`                                                          |
 
+> **Why Standard_D2s_v3?** The kube-prometheus-stack (Prometheus + Grafana) requires ~5 GB RAM minimum. Standard_B2s (4 GB) exhausts node memory and causes Helm install timeouts. Standard_D2s_v3 (8 GB) gives enough headroom for the full monitoring stack.
+>
 > **Note:** NGINX Ingress, cert-manager, Prometheus, Loki, and ArgoCD are **not** managed by Terraform. They are installed by the bootstrap pipeline after `terraform apply` completes (see Part D).
 
 ---
@@ -532,6 +543,55 @@ git push github main  # triggers GitHub Actions
 
 ---
 
+### CI/CD Workflow Diagram
+
+```text
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │  Developer pushes code                                                  │
+  └───────────┬─────────────────────────┬───────────────────────────────────┘
+              │ services/**             │ infrastructure/**
+              │ frontend/**             │
+              │ helm/**                 │
+              ▼                         ▼
+  ┌───────────────────────┐   ┌────────────────────────────┐
+  │    APP PIPELINE       │   │    INFRA PIPELINE          │
+  │  (app-pipeline.yml)   │   │  (infra-pipeline.yml)      │
+  │                       │   │                            │
+  │  Stage 1 — Build      │   │  Stage 1 — Plan (auto)     │
+  │  ┌─────────────────┐  │   │  ┌──────────────────────┐  │
+  │  │ Matrix: 5 images│  │   │  │ terraform fmt        │  │
+  │  │ built in        │  │   │  │ terraform validate   │  │
+  │  │ parallel        │  │   │  │ terraform plan       │  │
+  │  │ → pushed to ACR │  │   │  │ Upload plan artifact │  │
+  │  └─────────────────┘  │   │  └──────────────────────┘  │
+  │                       │   │                            │
+  │  Stage 2 — Deploy     │   │  Stage 2 — Apply ✋        │
+  │  ┌─────────────────┐  │   │  ┌──────────────────────┐  │
+  │  │ Update          │  │   │  │ Manual approval gate │  │
+  │  │ image.tag in    │  │   │  │ terraform apply      │  │
+  │  │ values.yaml     │  │   │  │ → AKS (D2s_v3)       │  │
+  │  │ git commit+push │  │   │  │ → ACR (Basic)        │  │
+  │  └────────┬────────┘  │   │  │ → Log Analytics      │  │
+  └───────────┼───────────┘   │  └──────────────────────┘  │
+              │               └────────────────────────────┘
+              ▼
+  ┌───────────────────────┐   ┌────────────────────────────┐
+  │   Git (values.yaml    │   │  BOOTSTRAP PIPELINE        │
+  │   image.tag updated)  │   │  (manual, run once)        │
+  └───────────┬───────────┘   │                            │
+              │               │  helm install nginx-ingress │
+              │ polls every   │  helm install cert-manager  │
+              │ 3 minutes     │  helm install prometheus    │
+              ▼               │  helm install loki          │
+  ┌───────────────────────┐   │  kubectl apply argocd/     │
+  │       ArgoCD          │   │  → ArgoCD Application live │
+  │  (running in AKS)     │   └────────────────────────────┘
+  │  detects Git change   │
+  │  → helm upgrade       │
+  │  → rolling update     │
+  └───────────────────────┘
+```
+
 ### Pipeline overview
 
 Each concern has its own pipeline file, triggered by path. Only the changed layer runs:
@@ -541,25 +601,6 @@ Each concern has its own pipeline file, triggered by path. Only the changed laye
 | **App**       | `app-pipeline.yml`          | `app.yml`           | `services/**`, `frontend/**`, `helm/**` |
 | **Infra**     | `infra-pipeline.yml`        | `infra.yml`         | `infrastructure/**`                     |
 | **Bootstrap** | `bootstrap-pipeline.yml`    | `bootstrap.yml`     | Manual only (run once after AKS)        |
-
-```text
-App pipeline (every code push):
-  Stage 1 — Build: 5 Docker images built in parallel (matrix) → pushed to ACR
-  Stage 2 — Deploy: image.tag updated in helm/values.yaml → committed to Git
-             ArgoCD detects the commit → rolls out new pods automatically
-
-Infra pipeline (only when infrastructure/ changes):
-  Stage 1 — Plan: terraform fmt + validate + plan → artifact uploaded
-  Stage 2 — Apply: [manual approval] terraform apply → AKS, ACR, Log Analytics
-
-Bootstrap pipeline (manual, run once after first terraform apply):
-  ├── Install NGINX Ingress Controller
-  ├── Install cert-manager + Let's Encrypt ClusterIssuer
-  ├── Install Prometheus + Grafana
-  ├── Install Loki
-  ├── Install ArgoCD
-  └── Register ArgoCD Application → ArgoCD owns all future deployments
-```
 
 ---
 
@@ -583,16 +624,28 @@ In **Project Settings → Service Connections**:
 
 #### Step 3: Set pipeline variables
 
-Add these to each pipeline (Pipelines → select pipeline → Edit → Variables):
+> **Critical ADO behaviour — read before setting variables:**
+>
+> 1. `azureSubscription` in `AzureCLI@2` tasks is a `connectedService` input resolved at **compile time**, before any runtime variable expansion. It must be the literal service connection name `azure-zcommerce` hardcoded in the YAML — you cannot use `$(SOME_VARIABLE)` syntax here.
+> 2. Any variable you define in the YAML `variables:` block (even as `''`) will **shadow and override** a same-named variable set in the Pipelines → Edit → Variables UI. The three variables below (`ACR_LOGIN_SERVER`, `TF_STORAGE_ACCOUNT`, `TF_RESOURCE_GROUP`) are intentionally **not** defined in the YAML for this reason — only set them in the UI.
 
-| Variable                   | Value                                   | Secret? |
-|----------------------------|-----------------------------------------|---------|
-| `AZURE_SERVICE_CONNECTION` | `azure-zcommerce`                       | No      |
-| `ACR_LOGIN_SERVER`         | `zcommerceecommerceacrdev.azurecr.io`   | No      |
-| `TF_STORAGE_ACCOUNT`       | `zcommercetfstate`                      | No      |
-| `TF_RESOURCE_GROUP`        | `zcommerce-tfstate-rg`                  | No      |
-| `GIT_USER_EMAIL`           | e.g. `ci@yourdomain.com`                | No      |
-| `GIT_USER_NAME`            | `ZingyCommerce CI`                      | No      |
+Add these in the Pipelines → select pipeline → **Edit → Variables** panel:
+
+| Variable             | Pipeline(s) | Value                                 | Secret? |
+|----------------------|-------------|---------------------------------------|---------|
+| `ACR_LOGIN_SERVER`   | App         | `zcommerceecommerceacrdev.azurecr.io` | No      |
+| `TF_STORAGE_ACCOUNT` | Infra       | `zcommercetfstate`                    | No      |
+| `TF_RESOURCE_GROUP`  | Infra       | `zcommerce-tfstate-rg`                | No      |
+
+The following are already set inside the YAML and do **not** need to be added in the UI:
+
+| Variable         | Defined in YAML as                 |
+|------------------|------------------------------------|
+| `HELM_VALUES`    | `helm/zingycommerce/values.yaml`   |
+| `IMAGE_TAG`      | `$(Build.SourceVersion)`           |
+| `GIT_USER_EMAIL` | `pipeline@zingycommerce.com`       |
+| `GIT_USER_NAME`  | `ZingyCommerce Pipeline`           |
+| `ARGOCD_VERSION` | `v2.12.3`                          |
 
 #### Step 4: Create the three pipelines
 
@@ -751,12 +804,12 @@ Monthly cost for the **dev** environment (1 AKS node, minimal replicas):
 
 | Resource | Approx Cost |
 |----------|-------------|
-| AKS node pool (1x Standard_B2s) | ~$30/month |
+| AKS node pool (1x Standard_D2s_v3) | ~$70/month |
 | Azure Container Registry (Basic) | ~$5/month |
 | Log Analytics (< 5 GB/month) | Free |
 | Load Balancer (NGINX Ingress) | ~$18/month |
 | Bandwidth (minimal) | ~$2/month |
-| **Total (dev)** | **~$55/month** |
+| **Total (dev)** | **~$95/month** |
 
 **Stop costs when not using:**
 ```bash

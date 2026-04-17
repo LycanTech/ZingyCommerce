@@ -1240,8 +1240,8 @@
     <div class="azure-card" style="border-color:var(--brand);">
       <div class="az-icon">☸</div>
       <h4>Azure Kubernetes Service</h4>
-      <p>Fully managed Kubernetes cluster. Azure handles the control plane (API server, etcd, scheduler). We manage the node pool — 2× Standard_B2s VMs with auto-scaling enabled.</p>
-      <div><span class="az-tag">AKS · 2 nodes · auto-scale</span></div>
+      <p>Fully managed Kubernetes cluster. Azure handles the control plane (API server, etcd, scheduler). We manage the node pool — Standard_D2s_v3 (2 vCPU, 8 GB RAM) with auto-scaling. Upgraded from Standard_B2s to support the full Prometheus + Grafana monitoring stack.</p>
+      <div><span class="az-tag">AKS · Standard_D2s_v3 · auto-scale</span></div>
     </div>
 
     <div class="azure-card">
@@ -1321,15 +1321,15 @@
         <div class="desc">All inputs: location, environment (dev/staging/prod), prefix, node count, VM size, ACR SKU.</div>
       </div>
       <div class="tf-file">
-        <div class="filename">📄 acr.tf</div>
-        <div class="desc">Container Registry resource + AcrPull role assignment so AKS can pull images without credentials.</div>
+        <div class="filename">📁 modules/acr/</div>
+        <div class="desc">Container Registry (admin_enabled=false) + AcrPull role assigned to AKS kubelet identity. No passwords needed.</div>
       </div>
       <div class="tf-file">
-        <div class="filename">📄 aks.tf</div>
-        <div class="desc">AKS cluster with system-assigned identity, auto-scaling node pool, Azure Monitor integration.</div>
+        <div class="filename">📁 modules/aks/</div>
+        <div class="desc">AKS cluster — SystemAssigned identity, Standard_D2s_v3 (2 vCPU 8 GB), Managed OS disk, diagnostic settings.</div>
       </div>
       <div class="tf-file">
-        <div class="filename">📄 monitoring.tf</div>
+        <div class="filename">📁 modules/monitoring/</div>
         <div class="desc">Log Analytics workspace + AKS diagnostic settings forwarding control-plane logs.</div>
       </div>
       <div class="tf-file">
@@ -1364,7 +1364,7 @@
 
       <!-- Code snippet -->
       <div class="code-block">
-<span class="c-comment"># acr.tf — Container Registry + AKS pull permission</span>
+<span class="c-comment"># modules/acr/main.tf — Container Registry + AKS pull permission</span>
 <span class="c-keyword">resource</span> <span class="c-string">"azurerm_container_registry"</span> <span class="c-string">"main"</span> {
   name = <span class="c-string">"${var.prefix}commerceacr${var.environment}"</span>
   sku  = <span class="c-var">var.acr_sku</span>
@@ -1447,7 +1447,7 @@
         GitHub Actions: Settings → Environments → production
       </div>
       <div class="pipe-step"><div class="pipe-dot" style="background:var(--accent);"></div><div><strong>terraform apply tfplan</strong> — creates ACR, AKS, Log Analytics</div></div>
-      <div class="pipe-step"><div class="pipe-dot" style="background:var(--accent);"></div><div>Managed OS disk (30 GB) — compatible with Standard_B2s</div></div>
+      <div class="pipe-step"><div class="pipe-dot" style="background:var(--accent);"></div><div>AKS node: Standard_D2s_v3 (2 vCPU, 8 GB RAM) — required for Prometheus stack</div></div>
     </div>
 
     <div class="pipe-arrow">→</div>
@@ -1697,8 +1697,8 @@ curl -X POST localhost:3000/orders \
       <div style="font-size:8.5pt;font-weight:700;color:var(--brand2);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;">Monthly Breakdown — East US · Dev Environment</div>
       <div class="card" style="padding:0;overflow:hidden;margin-bottom:10px;">
         <div class="cost-row">
-          <div><div class="cost-name">AKS Node Pool</div><div class="cost-sku">2× Standard_B2s (2 vCPU, 4 GB RAM)</div></div>
-          <div class="cost-amt" style="color:var(--danger);">~$60</div>
+          <div><div class="cost-name">AKS Node Pool</div><div class="cost-sku">1× Standard_D2s_v3 (2 vCPU, 8 GB RAM)</div></div>
+          <div class="cost-amt" style="color:var(--danger);">~$70</div>
         </div>
         <div class="cost-row">
           <div><div class="cost-name">Azure Container Registry</div><div class="cost-sku">Basic SKU</div></div>
@@ -2103,7 +2103,7 @@ curl -X POST localhost:3000/orders \
         <div class="step-body">
           <div class="step-title">Set Up Azure DevOps Pipelines (3 pipelines)</div>
           <div class="step-cmd">New Pipeline → Existing YAML → app-pipeline.yml (repeat for infra-pipeline.yml, bootstrap-pipeline.yml)</div>
-          <div class="step-desc">Each pipeline needs: <code style="color:var(--accent);font-size:7.5pt;">AZURE_SERVICE_CONNECTION</code>, <code style="color:var(--accent);font-size:7.5pt;">ACR_LOGIN_SERVER</code>, <code style="color:var(--accent);font-size:7.5pt;">TF_STORAGE_ACCOUNT</code>, <code style="color:var(--accent);font-size:7.5pt;">TF_RESOURCE_GROUP</code>. No Docker Registry service connection — uses <code style="color:var(--accent);font-size:7.5pt;">az acr login</code>.</div>
+          <div class="step-desc">Set in Pipelines → Edit → Variables UI (NOT in YAML): <code style="color:var(--accent);font-size:7.5pt;">ACR_LOGIN_SERVER</code> (App), <code style="color:var(--accent);font-size:7.5pt;">TF_STORAGE_ACCOUNT</code> + <code style="color:var(--accent);font-size:7.5pt;">TF_RESOURCE_GROUP</code> (Infra). The <code style="color:var(--accent);font-size:7.5pt;">azureSubscription</code> value <code style="color:var(--accent);font-size:7.5pt;">azure-zcommerce</code> must be a literal in the YAML — ADO resolves service connections at compile time, not runtime.</div>
         </div>
       </div>
 
