@@ -24,6 +24,9 @@ trigger:
 variables:
   TF_DIR: infrastructure
   TF_VERSION: 1.8.5
+  AZURE_SERVICE_CONNECTION: azure-zcommerce  # Override if your service connection has a different name
+  TF_STORAGE_ACCOUNT: ''                     # REQUIRED — must be overridden in Pipeline Variables/Library
+  TF_RESOURCE_GROUP: ''                      # REQUIRED — must be overridden in Pipeline Variables/Library
 
 stages:
 
@@ -53,11 +56,21 @@ stages:
       - task: AzureCLI@2
         displayName: 'terraform init'
         inputs:
-          azureSubscription: azure-zcommerce
+          azureSubscription: $(AZURE_SERVICE_CONNECTION)
           scriptType: bash
           scriptLocation: inlineScript
           addSpnToEnvironment: true
           inlineScript: |
+            set -e
+            if [[ -z "$(TF_STORAGE_ACCOUNT)" ]]; then
+              echo "##vso[task.logissue type=error]TF_STORAGE_ACCOUNT pipeline variable is not set."
+              exit 1
+            fi
+            if [[ -z "$(TF_RESOURCE_GROUP)" ]]; then
+              echo "##vso[task.logissue type=error]TF_RESOURCE_GROUP pipeline variable is not set."
+              exit 1
+            fi
+
             cd $(TF_DIR)
             export ARM_CLIENT_ID=$servicePrincipalId
             export ARM_CLIENT_SECRET=$servicePrincipalKey
@@ -78,7 +91,7 @@ stages:
       - task: AzureCLI@2
         displayName: 'terraform validate'
         inputs:
-          azureSubscription: azure-zcommerce
+          azureSubscription: $(AZURE_SERVICE_CONNECTION)
           scriptType: bash
           scriptLocation: inlineScript
           addSpnToEnvironment: true
@@ -93,7 +106,7 @@ stages:
       - task: AzureCLI@2
         displayName: 'terraform plan'
         inputs:
-          azureSubscription: azure-zcommerce
+          azureSubscription: $(AZURE_SERVICE_CONNECTION)
           scriptType: bash
           scriptLocation: inlineScript
           addSpnToEnvironment: true
@@ -152,7 +165,7 @@ stages:
             - task: AzureCLI@2
               displayName: 'terraform init'
               inputs:
-                azureSubscription: azure-zcommerce
+                azureSubscription: $(AZURE_SERVICE_CONNECTION)
                 scriptType: bash
                 scriptLocation: inlineScript
                 addSpnToEnvironment: true
@@ -173,7 +186,7 @@ stages:
             - task: AzureCLI@2
               displayName: 'terraform apply'
               inputs:
-                azureSubscription: azure-zcommerce
+                azureSubscription: $(AZURE_SERVICE_CONNECTION)
                 scriptType: bash
                 scriptLocation: inlineScript
                 addSpnToEnvironment: true

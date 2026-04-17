@@ -22,6 +22,10 @@
 
 trigger: none   # manual only
 
+variables:
+  AZURE_SERVICE_CONNECTION: azure-zcommerce  # Override if your service connection has a different name
+  ARGOCD_VERSION: v2.12.3                    # Pin to a tested version; update deliberately
+
 parameters:
   - name: cluster_name
     displayName: 'AKS cluster name (terraform output aks_cluster_name)'
@@ -51,7 +55,7 @@ stages:
             - task: AzureCLI@2
               displayName: 'Connect kubectl to AKS'
               inputs:
-                azureSubscription: azure-zcommerce
+                azureSubscription: $(AZURE_SERVICE_CONNECTION)
                 scriptType: bash
                 scriptLocation: inlineScript
                 inlineScript: |
@@ -128,7 +132,7 @@ stages:
             - bash: |
                 kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
                 kubectl apply -n argocd \
-                  -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+                  -f https://raw.githubusercontent.com/argoproj/argo-cd/$(ARGOCD_VERSION)/manifests/install.yaml
                 kubectl apply -f argocd/install.yaml
 
                 kubectl rollout status deployment/argocd-server -n argocd --timeout=5m

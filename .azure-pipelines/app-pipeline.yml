@@ -32,7 +32,9 @@ trigger:
 variables:
   HELM_VALUES: helm/zingycommerce/values.yaml
   IMAGE_TAG: $(Build.SourceVersion)
-  # Override in Pipelines → Edit → Variables if your values differ
+  # Override in Pipelines → Edit → Variables or Library variable group
+  AZURE_SERVICE_CONNECTION: azure-zcommerce  # Override if your service connection has a different name
+  ACR_LOGIN_SERVER: ''                        # REQUIRED — must be overridden in Pipeline Variables/Library
   GIT_USER_EMAIL: pipeline@zingycommerce.com
   GIT_USER_NAME: ZingyCommerce Pipeline
 
@@ -78,7 +80,7 @@ stages:
       - task: AzureCLI@2
         displayName: 'Build & Push $(IMAGE_NAME)'
         inputs:
-          azureSubscription: azure-zcommerce
+          azureSubscription: $(AZURE_SERVICE_CONNECTION)
           scriptType: bash
           scriptLocation: inlineScript
           addSpnToEnvironment: true
@@ -87,6 +89,10 @@ stages:
             # Use env vars to avoid bash $() collision with ADO $(VAR) syntax
             ACR_SERVER="$(ACR_LOGIN_SERVER)"
             ACR_NAME="${ACR_SERVER%%.*}"
+            if [[ -z "$ACR_SERVER" ]]; then
+              echo "##vso[task.logissue type=error]ACR_LOGIN_SERVER pipeline variable is not set. Set it in Pipelines → Edit → Variables or Library."
+              exit 1
+            fi
             IMAGE="$(IMAGE_NAME)"
             TAG="$(IMAGE_TAG)"
             CTX="$(BUILD_CONTEXT)"

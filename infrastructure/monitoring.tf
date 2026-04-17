@@ -36,7 +36,7 @@ resource "azurerm_monitor_diagnostic_setting" "aks" {
 
   # Forward these log categories to Log Analytics:
   enabled_log {
-    category = "kube-apiserver"     # API server logs
+    category = "kube-apiserver" # API server logs
   }
   enabled_log {
     category = "kube-controller-manager"
@@ -45,7 +45,7 @@ resource "azurerm_monitor_diagnostic_setting" "aks" {
     category = "kube-scheduler"
   }
   enabled_log {
-    category = "kube-audit"         # Who did what (audit trail)
+    category = "kube-audit" # Who did what (audit trail)
   }
 
   metric {
