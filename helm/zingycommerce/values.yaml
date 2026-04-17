@@ -13,73 +13,64 @@
 global:
   # Azure Container Registry login server
   # Set this at deploy time: --set global.acrLoginServer=chikwex...azurecr.io
-  acrLoginServer: "zcommercecommerceacrdev.azurecr.io"
+  acrLoginServer: "zcommerceecommerceacrdev.azurecr.io"
   namespace: zcommerce
   environment: dev
-
 # ----- Image -----
 image:
   # Tag is set by the CI pipeline to the Build ID (e.g. "42")
   # Using a pinned tag (not latest) guarantees reproducible deploys
-  tag: latest
+  tag: 6b67d480962ff97d2e52bc216e620ae23c74fa4e
   pullPolicy: IfNotPresent
-
 # ----- JWT Secret -----
 # In production, create the secret manually with:
 #   kubectl create secret generic zingycommerce-secrets \
 #     --from-literal=jwt-secret="$(openssl rand -hex 32)" -n zcommerce
 jwtSecretName: zingycommerce-secrets
-
 # =============================================================
 # Service-level configuration
 # Each block maps to a Deployment + Service in templates/
 # =============================================================
-
 frontend:
   enabled: true
   replicaCount: 2
   port: 80
   resources:
-    requests: { cpu: "50m",  memory: "64Mi"  }
-    limits:   { cpu: "200m", memory: "128Mi" }
-
+    requests: {cpu: "50m", memory: "64Mi"}
+    limits: {cpu: "200m", memory: "128Mi"}
 apiGateway:
   enabled: true
   replicaCount: 2
   port: 3000
   # URLs are Kubernetes internal DNS names (service-name.namespace.svc.cluster.local)
-  userServiceUrl:    "http://user-service:3001"
+  userServiceUrl: "http://user-service:3001"
   productServiceUrl: "http://product-service:3002"
-  orderServiceUrl:   "http://order-service:3003"
+  orderServiceUrl: "http://order-service:3003"
   resources:
-    requests: { cpu: "100m", memory: "64Mi"  }
-    limits:   { cpu: "500m", memory: "256Mi" }
-
+    requests: {cpu: "100m", memory: "64Mi"}
+    limits: {cpu: "500m", memory: "256Mi"}
 userService:
   enabled: true
   replicaCount: 2
   port: 3001
   resources:
-    requests: { cpu: "100m", memory: "64Mi"  }
-    limits:   { cpu: "500m", memory: "256Mi" }
-
+    requests: {cpu: "100m", memory: "64Mi"}
+    limits: {cpu: "500m", memory: "256Mi"}
 productService:
   enabled: true
   replicaCount: 2
   port: 3002
   resources:
-    requests: { cpu: "100m", memory: "64Mi"  }
-    limits:   { cpu: "500m", memory: "256Mi" }
-
+    requests: {cpu: "100m", memory: "64Mi"}
+    limits: {cpu: "500m", memory: "256Mi"}
 orderService:
   enabled: true
   replicaCount: 2
   port: 3003
   productServiceUrl: "http://product-service:3002"
   resources:
-    requests: { cpu: "100m", memory: "64Mi"  }
-    limits:   { cpu: "500m", memory: "256Mi" }
-
+    requests: {cpu: "100m", memory: "64Mi"}
+    limits: {cpu: "500m", memory: "256Mi"}
 # =============================================================
 # Ingress (NGINX)
 # Requires NGINX Ingress Controller installed in the cluster.
@@ -97,7 +88,6 @@ ingress:
   tls:
     enabled: true
     secretName: zingycommerce-tls
-
 # =============================================================
 # Horizontal Pod Autoscaler
 # =============================================================
@@ -106,7 +96,6 @@ autoscaling:
   minReplicas: 2
   maxReplicas: 5
   targetCPUUtilizationPercentage: 70
-
 # =============================================================
 # Probes (health checks used by Kubernetes)
 # =============================================================
