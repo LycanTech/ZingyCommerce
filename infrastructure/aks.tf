@@ -32,9 +32,7 @@ resource "azurerm_kubernetes_cluster" "main" {
     min_count           = 1
     max_count           = var.node_count + 2 # e.g. 2 → can scale to 4
 
-    # Managed OS disk — compatible with all VM sizes including Standard_B2s.
-    # Ephemeral requires the VM cache to be >= OS disk size (128 GB),
-    # which Standard_B2s (32 GB cache) cannot satisfy.
+    # Managed OS disk — Ephemeral requires VM cache >= OS disk size (128 GB).
     os_disk_type    = "Managed"
     os_disk_size_gb = 30
 

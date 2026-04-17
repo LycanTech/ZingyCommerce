@@ -50,10 +50,11 @@ variable "node_count" {
 variable "node_vm_size" {
   description = "VM size for Kubernetes nodes"
   type        = string
-  default     = "Standard_B2s"
+  default     = "Standard_D2s_v3"
 
-  # Standard_B2s = 2 vCPU, 4 GB RAM — cheapest for learning
-  # Standard_D2s_v3 = 2 vCPU, 8 GB RAM — better for staging/prod
+  # Standard_D2s_v3 = 2 vCPU, 8 GB RAM — handles Prometheus/Grafana stack
+  # Standard_B2s    = 2 vCPU, 4 GB RAM — too small for full monitoring stack
+  # Standard_D4s_v3 = 4 vCPU, 16 GB RAM — production
 }
 
 variable "acr_sku" {
