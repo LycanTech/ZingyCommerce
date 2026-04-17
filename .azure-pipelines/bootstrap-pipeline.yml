@@ -32,9 +32,11 @@ parameters:
   - name: cluster_name
     displayName: 'AKS cluster name (terraform output aks_cluster_name)'
     type: string
+    default: zcommerce-aks-dev
   - name: resource_group
     displayName: 'Resource group (terraform output resource_group_name)'
     type: string
+    default: zcommerce-ecommerce-dev-rg
 
 stages:
 
