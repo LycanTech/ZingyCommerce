@@ -100,3 +100,39 @@ module "acr" {
   aks_kubelet_principal_id = module.aks.kubelet_principal_id
   tags                     = azurerm_resource_group.main.tags
 }
+
+# ============================================================
+# moved blocks — state address migration
+#
+# When resources move into modules their state addresses change.
+# These blocks tell Terraform "the resource at the old address
+# IS the resource at the new address" — no destroy/recreate.
+#
+# Safe to remove after the first successful `terraform apply`
+# that picks up this refactor.
+# ============================================================
+
+moved {
+  from = azurerm_log_analytics_workspace.main
+  to   = module.monitoring.azurerm_log_analytics_workspace.main
+}
+
+moved {
+  from = azurerm_kubernetes_cluster.main
+  to   = module.aks.azurerm_kubernetes_cluster.main
+}
+
+moved {
+  from = azurerm_monitor_diagnostic_setting.aks
+  to   = module.aks.azurerm_monitor_diagnostic_setting.aks
+}
+
+moved {
+  from = azurerm_container_registry.main
+  to   = module.acr.azurerm_container_registry.main
+}
+
+moved {
+  from = azurerm_role_assignment.aks_acr_pull
+  to   = module.acr.azurerm_role_assignment.aks_acr_pull
+}
