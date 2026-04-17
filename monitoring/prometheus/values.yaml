@@ -13,17 +13,20 @@
 # ── Prometheus ──────────────────────────────────────────────────────────────
 prometheus:
   prometheusSpec:
-    # How long to keep metrics data (15 days = good balance of storage vs history)
+    # How long to keep metrics data
     retention: 15d
 
-    # Persistent storage so metrics survive pod restarts
-    storageSpec:
-      volumeClaimTemplate:
-        spec:
-          accessModes: ["ReadWriteOnce"]
-          resources:
-            requests:
-              storage: 20Gi
+    # Persistence disabled for dev — each Azure Disk PVC takes 8-15 min to
+    # provision, causing Helm install timeouts. Metrics are lost on pod restart
+    # which is acceptable in dev. Re-enable for prod:
+    #   storageSpec:
+    #     volumeClaimTemplate:
+    #       spec:
+    #         accessModes: ["ReadWriteOnce"]
+    #         resources:
+    #           requests:
+    #             storage: 20Gi
+    storageSpec: {}
 
     # Pod annotation-based scraping — finds ZingyCommerce pods automatically
     # because we added prometheus.io/scrape: "true" to each deployment

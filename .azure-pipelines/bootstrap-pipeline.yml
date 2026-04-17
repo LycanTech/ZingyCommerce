@@ -130,12 +130,28 @@ stages:
             - bash: |
                 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
                 helm repo update
+                # No --wait: Helm applies manifests and returns immediately.
+                # Persistence is disabled in values.yaml so no Azure Disk PVCs
+                # are provisioned — eliminates the 8-15 min provisioning wait.
                 helm upgrade --install kube-prometheus-stack prometheus-community/kube-prometheus-stack \
                   --namespace monitoring \
                   --create-namespace \
                   -f monitoring/prometheus/values.yaml \
-                  --wait --timeout 30m
+                  --timeout 10m
               displayName: 'Install Prometheus + Grafana'
+
+            - bash: |
+                echo "Waiting for Prometheus StatefulSet to be ready..."
+                kubectl rollout status statefulset/prometheus-kube-prometheus-stack-prometheus \
+                  -n monitoring --timeout=10m
+
+                echo "Waiting for Grafana Deployment to be ready..."
+                kubectl rollout status deployment/kube-prometheus-stack-grafana \
+                  -n monitoring --timeout=5m
+
+                echo "Prometheus + Grafana are ready."
+                kubectl get pods -n monitoring
+              displayName: 'Wait for Prometheus + Grafana pods'
 
             - bash: |
                 helm repo add grafana https://grafana.github.io/helm-charts
