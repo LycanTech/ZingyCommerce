@@ -1,30 +1,17 @@
 # ============================================================
-# main.tf — Provider Configuration & Resource Group
+# main.tf — Root module
 #
-# What is Terraform?
-#   Terraform is a tool that lets you describe your cloud
-#   infrastructure in code (.tf files). You run `terraform apply`
-#   and Terraform figures out what to CREATE, UPDATE, or DELETE
-#   in Azure to match what you described.
+# Declares providers, remote state backend, and the resource
+# group. Then wires together the three child modules:
 #
-# Why Terraform over Bicep?
-#   - Works across multiple clouds (Azure, AWS, GCP)
-#   - Larger community and ecosystem
-#   - terraform plan shows you EXACTLY what will change
-#     before anything is touched — great for safety
-#   - State file tracks what Terraform has already created
+#   monitoring  → Log Analytics workspace
+#   aks         → Kubernetes cluster + diagnostic logs
+#   acr         → Container registry + AcrPull role
 #
-# Files in this folder:
-#   main.tf          — providers, resource group, backend
-#   variables.tf     — all configurable inputs
-#   outputs.tf       — values printed after deployment
-#   acr.tf           — Azure Container Registry
-#   aks.tf           — Azure Kubernetes Service
-#   monitoring.tf    — Log Analytics Workspace
-#   terraform.tfvars — YOUR values (not committed to Git)
+# Dependency order:
+#   resource_group → monitoring → aks → acr
 # ============================================================
 
-# ---- Terraform Settings ----
 terraform {
   required_version = ">= 1.7.0"
 
@@ -39,23 +26,6 @@ terraform {
     }
   }
 
-  # ---- Remote State Backend ----
-  # Terraform keeps a "state file" that tracks what it created.
-  # Storing it in Azure Blob Storage means your whole team shares
-  # the same state, and it's backed up safely.
-  #
-  # Create the storage account ONCE manually (before terraform init):
-  #   az group create --name tfstate-rg --location eastus
-  #   az storage account create \
-  #     --name <UNIQUE_NAME>tfstate \
-  #     --resource-group tfstate-rg \
-  #     --location eastus \
-  #     --sku Standard_LRS
-  #   az storage container create \
-  #     --name tfstate \
-  #     --account-name <UNIQUE_NAME>tfstate
-  #
-  # Then fill in the values below:
   backend "azurerm" {
     resource_group_name  = "zcommerce-tfstate-rg"
     storage_account_name = "zcommercetfstate"
@@ -64,14 +34,9 @@ terraform {
   }
 }
 
-# ---- Azure Provider ----
-# This tells Terraform to talk to Azure.
-# Authentication uses your `az login` session automatically.
 provider "azurerm" {
   features {
     resource_group {
-      # Safety net: Terraform won't delete a resource group
-      # unless every resource inside it has already been deleted
       prevent_deletion_if_contains_resources = false
     }
     key_vault {
@@ -84,8 +49,8 @@ provider "azurerm" {
 provider "azuread" {}
 
 # ---- Resource Group ----
-# A resource group is like a folder in Azure.
-# Every resource we create goes inside this folder.
+# Created in root (not a module) because every module
+# depends on it and it keeps the dependency graph simple.
 resource "azurerm_resource_group" "main" {
   name     = "${var.prefix}-ecommerce-${var.environment}-rg"
   location = var.location
@@ -95,4 +60,43 @@ resource "azurerm_resource_group" "main" {
     project     = "ecommerce-microservices"
     managed_by  = "terraform"
   }
+}
+
+# ---- Monitoring ----
+module "monitoring" {
+  source = "./modules/monitoring"
+
+  prefix              = var.prefix
+  environment         = var.environment
+  resource_group_name = azurerm_resource_group.main.name
+  location            = azurerm_resource_group.main.location
+  log_retention_days  = var.log_retention_days
+  tags                = azurerm_resource_group.main.tags
+}
+
+# ---- AKS ----
+module "aks" {
+  source = "./modules/aks"
+
+  prefix                     = var.prefix
+  environment                = var.environment
+  resource_group_name        = azurerm_resource_group.main.name
+  location                   = azurerm_resource_group.main.location
+  node_count                 = var.node_count
+  node_vm_size               = var.node_vm_size
+  log_analytics_workspace_id = module.monitoring.workspace_id
+  tags                       = azurerm_resource_group.main.tags
+}
+
+# ---- ACR ----
+module "acr" {
+  source = "./modules/acr"
+
+  prefix                   = var.prefix
+  environment              = var.environment
+  resource_group_name      = azurerm_resource_group.main.name
+  location                 = azurerm_resource_group.main.location
+  acr_sku                  = var.acr_sku
+  aks_kubelet_principal_id = module.aks.kubelet_principal_id
+  tags                     = azurerm_resource_group.main.tags
 }
