@@ -33,7 +33,9 @@ variables:
   HELM_VALUES: helm/zingycommerce/values.yaml
   IMAGE_TAG: $(Build.SourceVersion)
   # Override in Pipelines → Edit → Variables or Library variable group
-  AZURE_SERVICE_CONNECTION: azure-zcommerce  # Override if your service connection has a different name
+  # NOTE: azureSubscription in AzureCLI@2 tasks must be a literal — ADO resolves
+  # connectedService inputs at compile time, before variables are expanded.
+  # If you rename the service connection, update the azureSubscription fields directly.
   ACR_LOGIN_SERVER: ''                        # REQUIRED — must be overridden in Pipeline Variables/Library
   GIT_USER_EMAIL: pipeline@zingycommerce.com
   GIT_USER_NAME: ZingyCommerce Pipeline
@@ -80,7 +82,7 @@ stages:
       - task: AzureCLI@2
         displayName: 'Build & Push $(IMAGE_NAME)'
         inputs:
-          azureSubscription: $(AZURE_SERVICE_CONNECTION)
+          azureSubscription: azure-zcommerce
           scriptType: bash
           scriptLocation: inlineScript
           addSpnToEnvironment: true
