@@ -36,7 +36,12 @@ variables:
   # NOTE: azureSubscription in AzureCLI@2 tasks must be a literal — ADO resolves
   # connectedService inputs at compile time, before variables are expanded.
   # If you rename the service connection, update the azureSubscription fields directly.
-  ACR_LOGIN_SERVER: ''                        # REQUIRED — must be overridden in Pipeline Variables/Library
+  #
+  # ACR_LOGIN_SERVER is intentionally NOT defined here. Set it in:
+  #   Pipelines → Edit → Variables  (or a Library variable group)
+  # e.g. zcommerceecommerceacrdev.azurecr.io
+  # YAML variables override pipeline UI variables with the same name, so
+  # defining it here (even as '') would shadow the value you set in the UI.
   GIT_USER_EMAIL: pipeline@zingycommerce.com
   GIT_USER_NAME: ZingyCommerce Pipeline
 
