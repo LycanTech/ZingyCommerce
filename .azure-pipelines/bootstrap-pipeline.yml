@@ -115,6 +115,19 @@ stages:
               displayName: 'Install cert-manager + ClusterIssuer'
 
             - bash: |
+                # If a previous run left a stuck pending/failed release, clear it.
+                # helm upgrade refuses to run while another operation is "in progress".
+                STATUS=$(helm status kube-prometheus-stack -n monitoring 2>/dev/null | grep STATUS | awk '{print $2}')
+                if [[ "$STATUS" == "pending-install" || "$STATUS" == "pending-upgrade" || "$STATUS" == "failed" ]]; then
+                  echo "Stale release found (status: $STATUS) — uninstalling before retry"
+                  helm uninstall kube-prometheus-stack -n monitoring
+                  sleep 5
+                else
+                  echo "No stuck release found (status: '${STATUS:-not found}') — proceeding"
+                fi
+              displayName: 'Clean up any stuck Prometheus release'
+
+            - bash: |
                 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
                 helm repo update
                 helm upgrade --install kube-prometheus-stack prometheus-community/kube-prometheus-stack \
